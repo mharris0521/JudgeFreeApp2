@@ -1,13 +1,12 @@
 // src/screens/CrisisChatScreen.tsx
-// This file has been corrected to use .maybeSingle() to prevent crashes when
-// a chat channel is not associated with a crisis alert.
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, StyleSheet, FlatList, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
 import { useStore, Profile } from '../lib/store';
+// import { Picker } from '@react-native-picker/picker'; // Removed: only used for report modal
 
 interface Message {
   id: number;
@@ -15,6 +14,8 @@ interface Message {
   created_at: string;
   sender_id: string;
 }
+
+// Removed: REPORT_CATEGORIES constant
 
 export default function CrisisChatScreen({ route, navigation }: { route: any, navigation: any }) {
   const { channel_id } = route.params;
@@ -29,9 +30,20 @@ export default function CrisisChatScreen({ route, navigation }: { route: any, na
   const [isActivator, setIsActivator] = useState(false);
   const [associatedAlertId, setAssociatedAlertId] = useState<number | null>(null);
 
+  // Removed: State for reporting modal
+  // const [reportModalVisible, setReportModalVisible] = useState(false);
+  // const [reportReason, setReportReason] = useState('');
+  // const [reportCategory, setReportCategory] = useState(REPORT_CATEGORIES[0].value);
+  // const [isReporting, setIsReporting] = useState(false);
+
   useEffect(() => {
     const fetchInitialData = async () => {
-      if (!channel_id || !profile) return;
+      if (!channel_id || !profile) {
+        console.log("DEBUG: Missing channel_id or profile. channel_id:", channel_id, "profile:", profile);
+        setLoading(false);
+        return;
+      }
+      console.log("DEBUG: Starting fetchInitialData for channel_id:", channel_id);
       setLoading(true);
       try {
         const { data: messagesData, error: messagesError } = await supabase
@@ -41,41 +53,57 @@ export default function CrisisChatScreen({ route, navigation }: { route: any, na
           .order('created_at', { ascending: true });
         if (messagesError) throw messagesError;
         setMessages(messagesData || []);
+        console.log("DEBUG: Messages fetched:", messagesData?.length);
 
-        // --- CORRECTED QUERY LOGIC ---
-        // 1. Use .maybeSingle() to gracefully handle cases where no alert is linked (e.g., DMs).
-        // This prevents the PGRST116 error.
         const { data: channelData, error: channelError } = await supabase
             .from('channels')
             .select('participant_ids, alert_id, crisis_alerts:alert_id(created_by)')
             .eq('id', channel_id)
-            .maybeSingle(); // <-- THE CRITICAL FIX IS HERE
-        if (channelError) throw channelError;
+            .maybeSingle();
         
-        // 2. Safely check if channelData and the nested crisis_alerts object exist before accessing them.
+        if (channelError) {
+          console.error("DEBUG: Error fetching channel data:", channelError);
+          throw channelError;
+        }
+
+        console.log("DEBUG: Channel data fetched:", channelData);
+        
         if (channelData) {
             if (channelData.crisis_alerts && channelData.crisis_alerts.created_by === profile.id) {
                 setIsActivator(true);
                 setAssociatedAlertId(channelData.alert_id);
+                console.log("DEBUG: Current user is activator.");
             }
 
             const otherParticipantId = channelData.participant_ids.find(id => id !== profile.id);
+            console.log("DEBUG: Other participant ID found:", otherParticipantId);
+
             if (otherParticipantId) {
               const { data: otherUserData, error: userError } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', otherParticipantId)
                 .single();
-              if (userError) throw userError;
+              
+              if (userError) {
+                console.error("DEBUG: Error fetching other user profile:", userError);
+                throw userError;
+              }
               setOtherParticipant(otherUserData);
+              console.log("DEBUG: Other participant profile set:", otherUserData?.username);
+            } else {
+                console.log("DEBUG: No other participant ID found in channel participants or only one participant.");
             }
+        } else {
+            console.log("DEBUG: No channel data found for channel_id:", channel_id);
         }
 
       } catch (error: any) {
-        console.error("Error fetching initial chat data:", error);
+        console.error("Error in fetchInitialData:", error);
         Alert.alert("Error", "Could not load the chat details: " + error.message);
       } finally {
         setLoading(false);
+        console.log("DEBUG: fetchInitialData finished. Loading set to false.");
       }
     };
 
@@ -121,6 +149,10 @@ export default function CrisisChatScreen({ route, navigation }: { route: any, na
     }
   };
 
+  // Removed: handleReportUser Function
+  // const handleReportUser = async () => { /* ... */ };
+
+
   const renderMessageItem = ({ item }: { item: Message }) => {
     const isMyMessage = item.sender_id === profile?.id;
     return (
@@ -138,8 +170,15 @@ export default function CrisisChatScreen({ route, navigation }: { route: any, na
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Removed: Report User Modal */}
+      {/* <Modal> ... </Modal> */}
+
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Chat with {otherParticipant?.username || 'User'}</Text>
+        {/* Removed: Report Button in Header */}
+        {/* <TouchableOpacity onPress={() => setReportModalVisible(true)} style={styles.reportButton}>
+          <Ionicons name="flag-outline" size={24} color="#e74c3c" />
+        </TouchableOpacity> */}
         <TouchableOpacity onPress={handleEndChat}>
           <Text style={styles.closeButton}>End Chat</Text>
         </TouchableOpacity>
@@ -180,6 +219,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#1A1A1A' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#333' },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#FFF' },
+  // Removed: reportButton style
+  // reportButton: {
+  //   padding: 5,
+  //   marginRight: 15,
+  // },
   closeButton: { fontSize: 16, color: '#e74c3c', fontWeight: 'bold' },
   listContainer: { paddingHorizontal: 10, paddingVertical: 20 },
   messageRow: { flexDirection: 'row', marginVertical: 5 },
@@ -193,3 +237,6 @@ const styles = StyleSheet.create({
   input: { flex: 1, backgroundColor: '#373737', borderRadius: 20, paddingHorizontal: 15, paddingVertical: Platform.OS === 'ios' ? 12 : 8, color: '#FFF', fontSize: 16 },
   sendButton: { marginLeft: 10, justifyContent: 'center', alignItems: 'center', padding: 5 },
 });
+
+// Removed: modalStyles
+// const modalStyles = StyleSheet.create({ /* ... */ });
