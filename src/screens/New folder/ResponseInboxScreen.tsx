@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
-import { COLORS } from '../lib/constants'; // Added COLORS import
 
 interface ResponseOffer {
   id: number;
@@ -123,13 +122,7 @@ export default function ResponseInboxScreen({ route, navigation }: { route: any,
 
   const renderOfferItem = ({ item }: { item: ResponseOffer }) => (
     <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Image 
-          source={{ uri: item.profiles?.avatar_url || COLORS.DEFAULT_AVATAR_URL + (item.profiles?.username?.charAt(0).toUpperCase() || 'U') }} 
-          style={styles.avatar} 
-        />
-        <Text style={styles.username}>{item.profiles?.username || 'Community Member'}</Text>
-      </View>
+      <View style={styles.cardHeader}><Image source={{ uri: item.profiles?.avatar_url || 'https://placehold.co/60x60/2C2C2E/FFF?text=JD' }} style={styles.avatar} /><Text style={styles.username}>{item.profiles?.username || 'Community Member'}</Text></View>
       <Text style={styles.messageText}>"{item.offer_message}"</Text>
       <TouchableOpacity style={[styles.acceptButton, isAccepting === item.id && styles.acceptButtonDisabled]} onPress={() => handleAcceptOffer(item.id)} disabled={isAccepting !== null}>
         {isAccepting === item.id ? <ActivityIndicator color="#FFF" /> : <Text style={styles.acceptButtonText}>Accept & Chat</Text>}
@@ -165,9 +158,9 @@ export default function ResponseInboxScreen({ route, navigation }: { route: any,
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.secondary },
+  container: { flex: 1, backgroundColor: '#1A1A1A' },
   bannerContainer: {
-    backgroundColor: COLORS.info,
+    backgroundColor: '#3498db',
     padding: 15,
     flexDirection: 'row',
     alignItems: 'center',
@@ -177,30 +170,30 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   bannerTitle: {
-    color: COLORS.textPrimary,
+    color: '#FFF',
     fontSize: 16,
     fontWeight: 'bold',
   },
   bannerText: {
-    color: COLORS.textPrimary,
+    color: '#FFF',
     fontSize: 14,
     marginTop: 4,
   },
-  header: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  headerTitle: { fontSize: 28, fontWeight: 'bold', color: COLORS.textPrimary, textAlign: 'center' },
-  headerSubtitle: { fontSize: 16, color: COLORS.textSecondary, textAlign: 'center', marginTop: 10 },
+  header: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: '#333' },
+  headerTitle: { fontSize: 28, fontWeight: 'bold', color: '#FFF', textAlign: 'center' },
+  headerSubtitle: { fontSize: 16, color: '#AAA', textAlign: 'center', marginTop: 10 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { color: COLORS.textSecondary, fontSize: 16, marginTop: 20 },
-  card: { backgroundColor: COLORS.tertiary, borderRadius: 15, padding: 20, marginVertical: 8, marginHorizontal: 10 },
+  emptyText: { color: '#AAA', fontSize: 16, marginTop: 20 },
+  card: { backgroundColor: '#2C2C2E', borderRadius: 15, padding: 20, marginVertical: 8, marginHorizontal: 10 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
-  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15, backgroundColor: COLORS.secondary },
-  username: { fontSize: 18, fontWeight: 'bold', color: COLORS.textPrimary },
-  messageText: { fontSize: 16, color: COLORS.textSecondary, fontStyle: 'italic', lineHeight: 24 },
-  acceptButton: { backgroundColor: COLORS.primary, paddingVertical: 15, borderRadius: 10, alignItems: 'center', marginTop: 20 },
-  acceptButtonDisabled: { backgroundColor: COLORS.disabled },
-  acceptButtonText: { color: COLORS.textPrimary, fontSize: 16, fontWeight: 'bold' },
-  footer: { padding: 20, borderTopWidth: 1, borderTopColor: COLORS.border },
-  cancelButton: { backgroundColor: COLORS.danger, paddingVertical: 18, borderRadius: 12, alignItems: 'center', justifyContent: 'center', height: 58 },
-  cancelButtonDisabled: { backgroundColor: COLORS.disabled },
-  cancelButtonText: { color: COLORS.textPrimary, fontSize: 18, fontWeight: 'bold' },
+  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15, backgroundColor: '#1E1E1E' },
+  username: { fontSize: 18, fontWeight: 'bold', color: '#FFF' },
+  messageText: { fontSize: 16, color: '#DDD', fontStyle: 'italic', lineHeight: 24 },
+  acceptButton: { backgroundColor: '#3498db', paddingVertical: 15, borderRadius: 10, alignItems: 'center', marginTop: 20 },
+  acceptButtonDisabled: { backgroundColor: '#2980b9' },
+  acceptButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#333' },
+  cancelButton: { backgroundColor: '#e74c3c', paddingVertical: 18, borderRadius: 12, alignItems: 'center', justifyContent: 'center', height: 58 },
+  cancelButtonDisabled: { backgroundColor: '#c0392b' },
+  cancelButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
 });

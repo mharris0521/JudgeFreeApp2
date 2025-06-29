@@ -7,9 +7,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Image, Activ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
-import { useStore, Profile } from '../lib/store'; // Ensure Profile is imported if used
-import { COLORS } from '../lib/constants';
-import { Ionicons } from '@expo/vector-icons'; // Ensure Ionicons is imported
+import { useStore } from '../lib/store';
 
 // Define the structure of a conversation object
 interface Conversation {
@@ -33,18 +31,15 @@ export default function MyChatsScreen({ navigation }: { navigation: any }) {
 
   // We use useCallback to memoize the fetch function so it's not recreated on every render
   const fetchConversations = useCallback(async () => {
-    if (!profile) {
-        setLoading(false); // Stop loading if no profile
-        return;
-    }
-    console.log("Fetching conversations for profile:", profile.id); // Added logging
+    if (!profile) return;
+    console.log("Fetching conversations...");
     setLoading(true);
     try {
       // This RPC function is more efficient and secure than doing a complex join on the client.
       const { data, error } = await supabase.rpc('get_user_channels_with_details', { p_user_id: profile.id });
 
       if (error) throw error;
-
+      
       // The data from the RPC is already in the correct format.
       setConversations(data || []);
 
@@ -63,34 +58,31 @@ export default function MyChatsScreen({ navigation }: { navigation: any }) {
     }
   }, [isFocused, fetchConversations]);
 
-  // Real-time Subscription
+  // --- NEW: Real-time Subscription ---
   // This useEffect sets up the subscription to listen for new channels or messages.
   useEffect(() => {
     if (!profile?.id) return;
 
-    // Listen for changes in channels where the current user is a participant
     const channelSubscription = supabase.channel(`my-chats-${profile.id}`)
-      .on('postgres_changes',
-        {
-          event: '*', // Listen for all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'channels',
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'channels', 
           filter: `participant_ids@>{${profile.id}}` // Listen for changes where user is a participant
-        },
+        }, 
         (payload) => {
           console.log('Change detected in channels, refetching conversations:', payload);
           fetchConversations();
         }
       )
-      // Listen for new messages in the 'messages' table to update last_message
-      .on('postgres_changes',
+      .on('postgres_changes', 
         {
-          event: 'INSERT', // Only need to listen for new messages
+          event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          // We can't filter by channel participants here directly, so we refetch if any message is inserted.
+          // We can't filter by channel participants here directly, so we just refetch on any new message.
           // This is a reasonable trade-off for ensuring the 'last_message' is always up to date.
-          // For more granular updates, you'd need a more complex subscription setup or a database function.
         },
         (payload) => {
           console.log('New message detected, refetching conversations:', payload);
@@ -105,15 +97,14 @@ export default function MyChatsScreen({ navigation }: { navigation: any }) {
     };
   }, [profile, fetchConversations]);
 
-
   const renderConversationItem = ({ item }: { item: Conversation }) => (
-    <TouchableOpacity
+    <TouchableOpacity 
       style={styles.card}
       onPress={() => navigation.navigate('CrisisChat', { channel_id: item.channel_id })}
     >
-      <Image
-        source={{ uri: item.other_participant?.avatar_url || `${COLORS.DEFAULT_AVATAR_URL}${item.other_participant?.username?.charAt(0).toUpperCase() || 'U'}` }}
-        style={styles.avatar}
+      <Image 
+        source={{ uri: item.other_participant?.avatar_url || `https://placehold.co/60x60/2C2C2E/FFF?text=${item.other_participant?.username?.charAt(0).toUpperCase()}` }} 
+        style={styles.avatar} 
       />
       <View style={styles.cardTextContainer}>
         <Text style={styles.username}>{item.other_participant?.username || 'Chat'}</Text>
@@ -129,9 +120,7 @@ export default function MyChatsScreen({ navigation }: { navigation: any }) {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Chats</Text>
       </View>
-      {loading ? (
-        <ActivityIndicator size="large" color={COLORS.textPrimary} style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }} />
-      ) : (
+      {loading ? <ActivityIndicator size="large" color="#FFF" style={{ flex: 1 }} /> : (
         <FlatList
           data={conversations}
           renderItem={renderConversationItem}
@@ -140,12 +129,11 @@ export default function MyChatsScreen({ navigation }: { navigation: any }) {
           refreshing={loading}
           ListEmptyComponent={() => (
             <View style={styles.emptyContainer}>
-              <Ionicons name="chatbubbles-outline" size={60} color={COLORS.textSecondary} />
+              <Ionicons name="chatbubbles-outline" size={60} color="#444" />
               <Text style={styles.emptyText}>You have no active conversations.</Text>
               <Text style={styles.emptySubtext}>When you connect with someone, your chat will appear here.</Text>
             </View>
           )}
-          contentContainerStyle={conversations.length === 0 ? { flexGrow: 1, justifyContent: 'center' } : undefined} // Center content if empty
         />
       )}
     </SafeAreaView>
@@ -153,15 +141,15 @@ export default function MyChatsScreen({ navigation }: { navigation: any }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.secondary },
-  header: { padding: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  headerTitle: { fontSize: 28, fontWeight: 'bold', color: COLORS.textPrimary, textAlign: 'center' },
+  container: { flex: 1, backgroundColor: '#1A1A1A' },
+  header: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#333' },
+  headerTitle: { fontSize: 28, fontWeight: 'bold', color: '#FFF', textAlign: 'center' },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  emptyText: { color: COLORS.textSecondary, fontSize: 18, marginTop: 20, fontWeight: 'bold' },
-  emptySubtext: { color: COLORS.textSecondary, fontSize: 16, marginTop: 10, textAlign: 'center' },
-  card: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: COLORS.tertiary },
-  avatar: { width: 60, height: 60, borderRadius: 30, marginRight: 15, backgroundColor: COLORS.tertiary },
+  emptyText: { color: '#AAA', fontSize: 18, marginTop: 20, fontWeight: 'bold' },
+  emptySubtext: { color: '#777', fontSize: 16, marginTop: 10, textAlign: 'center' },
+  card: { flexDirection: 'row', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#2C2C2E' },
+  avatar: { width: 60, height: 60, borderRadius: 30, marginRight: 15, backgroundColor: '#333' },
   cardTextContainer: { flex: 1 },
-  username: { fontSize: 18, fontWeight: 'bold', color: COLORS.textPrimary },
-  lastMessage: { fontSize: 16, color: COLORS.textSecondary, marginTop: 5 },
+  username: { fontSize: 18, fontWeight: 'bold', color: '#FFF' },
+  lastMessage: { fontSize: 16, color: '#AAA', marginTop: 5 },
 });

@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
 import { useStore, Profile } from '../lib/store';
 import { Picker } from '@react-native-picker/picker';
-import { COLORS } from '../lib/constants'; // *** ADDED THIS IMPORT ***
 
 interface Message {
   id: number;
@@ -30,7 +29,7 @@ export default function CrisisChatScreen({ route, navigation }: { route: any, na
   const [otherParticipant, setOtherParticipant] = useState<Profile | null>(null);
   const [isActivator, setIsActivator] = useState(false);
   const [associatedAlertId, setAssociatedAlertId] = useState<number | null>(alert_id || null);
-
+  
   const profile = useStore((state) => state.profile);
   const flatListRef = useRef<FlatList>(null);
 
@@ -63,9 +62,9 @@ export default function CrisisChatScreen({ route, navigation }: { route: any, na
           .select('participant_ids, alert_id, crisis_alerts:alert_id(created_by)')
           .eq('id', channel_id)
           .maybeSingle();
-
+        
         if (channelError) throw channelError;
-
+        
         if (channelData) {
           if (channelData.crisis_alerts && channelData.crisis_alerts.created_by === profile.id) {
             setIsActivator(true);
@@ -166,7 +165,7 @@ export default function CrisisChatScreen({ route, navigation }: { route: any, na
   };
 
   if (loading) {
-      return (<SafeAreaView style={[styles.container, {justifyContent: 'center'}]}><ActivityIndicator size="large" color={COLORS.textPrimary} /></SafeAreaView>);
+      return (<SafeAreaView style={[styles.container, {justifyContent: 'center'}]}><ActivityIndicator size="large" /></SafeAreaView>);
   }
 
   return (
@@ -196,7 +195,7 @@ export default function CrisisChatScreen({ route, navigation }: { route: any, na
             <TextInput
               style={modalStyles.input}
               placeholder="Additional details (optional)"
-              placeholderTextColor={COLORS.textSecondary} // Changed from #888
+              placeholderTextColor="#888"
               value={reportComments}
               onChangeText={setReportComments}
               multiline
@@ -218,7 +217,7 @@ export default function CrisisChatScreen({ route, navigation }: { route: any, na
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Chat with {otherParticipant?.username || 'User'}</Text>
         <TouchableOpacity onPress={() => setReportModalVisible(true)} style={styles.reportButton}>
-          <Ionicons name="flag-outline" size={24} color={COLORS.danger} /> {/* Changed from #e74c3c */}
+          <Ionicons name="flag-outline" size={24} color="#e74c3c" />
         </TouchableOpacity>
         <TouchableOpacity onPress={handleEndChat}>
           <Text style={styles.closeButton}>End Chat</Text>
@@ -234,7 +233,7 @@ export default function CrisisChatScreen({ route, navigation }: { route: any, na
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
       />
-
+      
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={90}
@@ -245,10 +244,10 @@ export default function CrisisChatScreen({ route, navigation }: { route: any, na
             value={newMessage}
             onChangeText={setNewMessage}
             placeholder="Type your message..."
-            placeholderTextColor={COLORS.textSecondary} // Changed from #888
+            placeholderTextColor="#888"
           />
           <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
-            <Ionicons name="send" size={24} color={COLORS.primary} /> {/* Changed from #3498db */}
+            <Ionicons name="send" size={24} color="#3498db" />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -257,35 +256,35 @@ export default function CrisisChatScreen({ route, navigation }: { route: any, na
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.secondary }, // Changed from #1A1A1A
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border }, // Changed from #333
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.textPrimary }, // Changed from #FFF
+  container: { flex: 1, backgroundColor: '#1A1A1A' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#333' },
+  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#FFF' },
   reportButton: { padding: 5, marginRight: 15 },
-  closeButton: { fontSize: 16, color: COLORS.danger, fontWeight: 'bold' }, // Changed from #e74c3c
+  closeButton: { fontSize: 16, color: '#e74c3c', fontWeight: 'bold' },
   listContainer: { paddingHorizontal: 10, paddingVertical: 20 },
   messageRow: { flexDirection: 'row', marginVertical: 5 },
   myMessageRow: { justifyContent: 'flex-end' },
   theirMessageRow: { justifyContent: 'flex-start' },
   messageBubble: { borderRadius: 20, padding: 15, maxWidth: '75%' },
-  myMessageBubble: { backgroundColor: COLORS.primary, borderBottomRightRadius: 5 }, // Changed from #3498db
-  theirMessageBubble: { backgroundColor: COLORS.tertiary, borderBottomLeftRadius: 5 }, // Changed from #373737
-  messageText: { fontSize: 16, color: COLORS.textPrimary }, // Changed from #FFF
-  inputContainer: { flexDirection: 'row', padding: 10, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.secondary, alignItems: 'center' }, // Changed from #333 and #1E1E1E
-  input: { flex: 1, backgroundColor: COLORS.tertiary, borderRadius: 20, paddingHorizontal: 15, paddingVertical: Platform.OS === 'ios' ? 12 : 8, color: COLORS.textPrimary, fontSize: 16 }, // Changed from #373737 and #FFF
+  myMessageBubble: { backgroundColor: '#3498db', borderBottomRightRadius: 5 },
+  theirMessageBubble: { backgroundColor: '#373737', borderBottomLeftRadius: 5 },
+  messageText: { fontSize: 16, color: '#FFF' },
+  inputContainer: { flexDirection: 'row', padding: 10, borderTopWidth: 1, borderTopColor: '#333', backgroundColor: '#1E1E1E', alignItems: 'center' },
+  input: { flex: 1, backgroundColor: '#373737', borderRadius: 20, paddingHorizontal: 15, paddingVertical: Platform.OS === 'ios' ? 12 : 8, color: '#FFF', fontSize: 16 },
   sendButton: { marginLeft: 10, justifyContent: 'center', alignItems: 'center', padding: 5 },
 });
 
 const modalStyles = StyleSheet.create({
   modalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)' },
-  modalView: { width: '90%', backgroundColor: COLORS.secondary, borderRadius: 20, padding: 25, alignItems: 'center' }, // Changed from #2C2C2E
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textPrimary, marginBottom: 10 }, // Changed from #FFF
-  modalSubtitle: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 20 }, // Changed from #AAA
-  pickerContainer: { width: '100%', backgroundColor: COLORS.tertiary, borderRadius: 10, marginBottom: 20 }, // Changed from #373737
-  picker: { color: COLORS.textPrimary }, // Changed from #FFF
-  pickerItem: { color: COLORS.textPrimary, backgroundColor: COLORS.tertiary }, // Changed from #FFF, #373737
-  input: { width: '100%', backgroundColor: COLORS.tertiary, borderRadius: 10, padding: 15, minHeight: 100, color: COLORS.textPrimary, fontSize: 16, textAlignVertical: 'top', marginBottom: 20 }, // Changed from #373737, #FFF
-  submitButton: { backgroundColor: COLORS.danger, paddingVertical: 15, borderRadius: 10, alignItems: 'center', width: '100%' }, // Changed from #e74c3c
-  submitButtonDisabled: { backgroundColor: COLORS.disabled }, // Changed from #c0392b
-  submitButtonText: { color: COLORS.textPrimary, fontSize: 16, fontWeight: 'bold' }, // Changed from #FFF
-  cancelButton: { color: COLORS.primary, fontSize: 16, marginTop: 20 }, // Changed from #3498db
+  modalView: { width: '90%', backgroundColor: '#2C2C2E', borderRadius: 20, padding: 25, alignItems: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#FFF', marginBottom: 10 },
+  modalSubtitle: { fontSize: 14, color: '#AAA', textAlign: 'center', marginBottom: 20 },
+  pickerContainer: { width: '100%', backgroundColor: '#373737', borderRadius: 10, marginBottom: 20 },
+  picker: { color: '#FFF' },
+  pickerItem: { color: '#FFF', backgroundColor: '#373737' },
+  input: { width: '100%', backgroundColor: '#373737', borderRadius: 10, padding: 15, minHeight: 100, color: '#FFF', fontSize: 16, textAlignVertical: 'top', marginBottom: 20 },
+  submitButton: { backgroundColor: '#e74c3c', paddingVertical: 15, borderRadius: 10, alignItems: 'center', width: '100%' },
+  submitButtonDisabled: { backgroundColor: '#c0392b' },
+  submitButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
+  cancelButton: { color: '#3498db', fontSize: 16, marginTop: 20 },
 });

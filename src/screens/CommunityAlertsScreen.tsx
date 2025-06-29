@@ -1,163 +1,278 @@
-// This file has been completely refactored for the "Activator Choice Model".
-// It is now the "Community Alerts" screen, where users can offer support.
+// src/screens/CommunityAlertsScreen.tsx
+// This screen lists active crisis alerts in the community.
 
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Alert, TextInput, Modal } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
+import { COLORS } from '../lib/constants';
+import { useStore } from '../lib/store';
 
-export interface CrisisAlert {
+// Define the structure of an active alert
+interface CrisisAlert {
   id: number;
+  initial_message: string;
   created_at: string;
-  initial_message: string | null;
-  profiles: {
-    username: string;
-  } | null;
+  status: 'active' | 'fulfilled' | 'resolved' | 'cancelled';
+  created_by: string;
+  profiles: { username: string; avatar_url: string | null; } | null;
 }
 
 export default function CommunityAlertsScreen({ navigation }: { navigation: any }) {
   const [alerts, setAlerts] = useState<CrisisAlert[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // State for the "Send Offer" modal
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedAlert, setSelectedAlert] = useState<CrisisAlert | null>(null);
-  const [offerMessage, setOfferMessage] = useState('');
-  const [isSending, setIsSending] = useState(false);
+  const currentUserProfile = useStore((state) => state.profile);
+
+  const fetchActiveAlerts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('crisis_alerts')
+        .select(`
+          id, initial_message, created_at, status, created_by,
+          profiles:created_by (username, avatar_url)
+        `)
+        .eq('status', 'active') // Only fetch active alerts
+        .neq('created_by', currentUserProfile?.id) // Don't show own alerts
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setAlerts(data || []);
+    } catch (error: any) {
+      Alert.alert("Error", `Could not fetch community alerts: ${error.message}`);
+      console.error("Error fetching community alerts:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUserProfile]);
 
   useEffect(() => {
-    const fetchInitialAlerts = async () => {
-      setLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('crisis_alerts')
-          .select(`id, created_at, initial_message, profiles:profiles!crisis_alerts_created_by_fkey(username)`)
-          .eq('status', 'active');
+    fetchActiveAlerts();
 
-        if (error) throw error;
-        if (data) setAlerts(data);
-      } catch (error) {
-        console.error("Error fetching alerts:", error);
-        Alert.alert("Error", "Could not fetch community alerts.");
-      } finally {
-        setLoading(false);
-      }
+    // Set up real-time subscription for new alerts or status changes
+    const alertSubscription = supabase.channel('community-alerts-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'crisis_alerts' }, (payload) => {
+        // If an alert is inserted, updated (e.g., status changed to active/fulfilled/resolved/cancelled)
+        // or deleted, refetch the entire list to ensure consistency.
+        console.log('Alert change detected, refetching:', payload);
+        fetchActiveAlerts();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(alertSubscription);
     };
-    fetchInitialAlerts();
-    const subscription = supabase.channel('crisis_alerts').on('postgres_changes', { event: '*', schema: 'public', table: 'crisis_alerts' }, () => { fetchInitialAlerts(); }).subscribe();
-    return () => { supabase.removeChannel(subscription); };
-  }, []);
+  }, [fetchActiveAlerts]);
 
-  const openOfferModal = (alert: CrisisAlert) => {
-    setSelectedAlert(alert);
-    setOfferMessage('');
-    setModalVisible(true);
-  };
-
-  const handleSendOffer = async () => {
-    if (!selectedAlert || offerMessage.trim().length === 0) return;
-    setIsSending(true);
-    try {
-      const { error } = await supabase.functions.invoke('alert-manager', {
-        body: {
-          action: 'send_offer',
-          payload: {
-            alert_id: selectedAlert.id,
-            offer_message: offerMessage.trim()
-          }
-        },
-      });
-
-      if (error) throw new Error(error.message);
-
-      setModalVisible(false);
-      Alert.alert("Offer Sent", "Your message of support has been sent to the user.");
-
-    } catch (error: any) {
-      console.error("Error sending offer:", error);
-      Alert.alert("Error", `Could not send offer. ${error.message}`);
-    } finally {
-      setIsSending(false);
+  const handleOfferSupport = async (alertId: number, alertCreatorUsername: string) => {
+    if (!currentUserProfile) {
+      Alert.alert("Not Logged In", "Please log in to offer support.");
+      return;
     }
+
+    Alert.alert(
+      "Offer Support",
+      `Are you sure you want to offer support to @${alertCreatorUsername}?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Yes, Offer Support",
+          onPress: async () => {
+            try {
+              // Call the Supabase Edge Function to handle offering support
+              const { data, error } = await supabase.functions.invoke('alert-manager', {
+                body: {
+                  action: 'send_offer', // <--- CHANGE THIS LINE
+                  payload: {
+                    alert_id: alertId,
+                    // You might want to add a default message or prompt for one here
+                    offer_message: 'I would like to offer my support.',
+                  },
+                },
+              });
+
+              if (error) throw new Error(error.message);
+
+              Alert.alert("Offer Sent!", "Your offer has been sent to the alert creator. They will contact you if they accept.");
+              // Optionally refresh the list or navigate away
+              fetchActiveAlerts();
+
+            } catch (error: any) {
+              Alert.alert("Error", `Could not send offer: ${error.message}`);
+              console.error("Error sending offer:", error);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const renderAlertItem = ({ item }: { item: CrisisAlert }) => (
-    <View style={styles.alertItem}>
-      <Text style={styles.alertUser}>A community member needs support</Text>
-      <Text style={styles.alertTimestamp}>{new Date(item.created_at).toLocaleString()}</Text>
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{item.profiles?.username?.charAt(0).toUpperCase() || 'U'}</Text>
+        </View>
+        <View style={styles.userInfo}>
+          <Text style={styles.username}>@{item.profiles?.username || 'Anonymous'}</Text>
+          <Text style={styles.timestamp}>{new Date(item.created_at).toLocaleString()}</Text>
+        </View>
+      </View>
+      <Text style={styles.messageText}>"{item.initial_message || 'A community member has activated a crisis alert.'}"</Text>
       <TouchableOpacity
-        style={styles.offerButton}
-        onPress={() => openOfferModal(item)}
+        style={styles.supportButton}
+        onPress={() => handleOfferSupport(item.id, item.profiles?.username || 'Anonymous')}
       >
-        <Text style={styles.offerButtonText}>Offer Support</Text>
+        <Text style={styles.supportButtonText}>Offer Support</Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Modal for sending an offer */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalView}>
-            <Text style={styles.modalTitle}>Send a Message of Support</Text>
-            <Text style={styles.modalSubtitle}>Let them know you're here to listen. This is the first message they will see.</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="e.g., 'Hey, I'm here to listen if you need to talk.'"
-              placeholderTextColor="#888"
-              value={offerMessage}
-              onChangeText={setOfferMessage}
-              multiline
-            />
-            <TouchableOpacity style={[styles.modalButton, isSending && styles.modalButtonDisabled]} onPress={handleSendOffer} disabled={isSending}>
-              {isSending ? <ActivityIndicator color="#FFF"/> : <Text style={styles.modalButtonText}>Send Offer</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <Text style={styles.modalCancel}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Main Screen Content */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Community Alerts</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.closeButton}>Close</Text>
-        </TouchableOpacity>
+        <Text style={styles.headerSubtitle}>Reach out and offer support to those in need.</Text>
       </View>
-      {loading ? <ActivityIndicator size="large" color="#FFF" style={{ marginTop: 50 }} /> : <FlatList data={alerts} renderItem={renderAlertItem} keyExtractor={(item) => item.id.toString()} ListEmptyComponent={() => (<View style={styles.emptyContainer}><Text style={styles.emptyText}>No active alerts right now.</Text></View>)} contentContainerStyle={styles.listContainer} />}
+
+      {loading ? (
+        <ActivityIndicator size="large" color={COLORS.textPrimary} style={styles.loadingIndicator} />
+      ) : (
+        <FlatList
+          data={alerts}
+          renderItem={renderAlertItem}
+          keyExtractor={(item) => item.id.toString()}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="megaphone-outline" size={60} color={COLORS.textSecondary} />
+              <Text style={styles.emptyText}>No active community alerts right now.</Text>
+              <Text style={styles.emptySubtext}>Check back later or activate your own alert if you need support.</Text>
+            </View>
+          )}
+          contentContainerStyle={alerts.length === 0 ? styles.listEmptyContent : styles.listContent}
+          onRefresh={fetchActiveAlerts}
+          refreshing={loading}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#121212' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#333' },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#FFF' },
-  closeButton: { fontSize: 16, color: '#3498db' },
-  listContainer: { padding: 10 },
-  alertItem: { backgroundColor: '#1E1E1E', borderRadius: 12, padding: 20, marginBottom: 15 },
-  alertUser: { fontSize: 18, fontWeight: 'bold', color: '#FFF', marginBottom: 5 },
-  alertTimestamp: { fontSize: 12, color: '#888', marginTop: 5 },
-  emptyContainer: { flex: 1, marginTop: 100, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { fontSize: 18, color: '#AAA' },
-  offerButton: { backgroundColor: '#27ae60', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 15 },
-  offerButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
-  // Modal Styles
-  modalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.7)' },
-  modalView: { width: '90%', backgroundColor: '#2C2C2E', borderRadius: 20, padding: 25, alignItems: 'center' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#FFF', marginBottom: 10 },
-  modalSubtitle: { fontSize: 14, color: '#AAA', textAlign: 'center', marginBottom: 20 },
-  modalInput: { width: '100%', backgroundColor: '#1E1E1E', borderRadius: 10, padding: 15, minHeight: 100, color: '#FFF', fontSize: 16, textAlignVertical: 'top' },
-  modalButton: { backgroundColor: '#3498db', paddingVertical: 15, borderRadius: 10, alignItems: 'center', marginTop: 20, width: '100%' },
-  modalButtonDisabled: { backgroundColor: '#2980b9' },
-  modalButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
-  modalCancel: { color: '#e74c3c', fontSize: 16, marginTop: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.secondary,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  loadingIndicator: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  listContent: {
+    paddingVertical: 10,
+  },
+  listEmptyContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: COLORS.textSecondary,
+    fontSize: 18,
+    marginTop: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    color: COLORS.textSecondary,
+    fontSize: 16,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  card: {
+    backgroundColor: COLORS.tertiary,
+    borderRadius: 15,
+    padding: 20,
+    marginVertical: 8,
+    marginHorizontal: 10,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 15,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    color: COLORS.textPrimary,
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  userInfo: {
+    flex: 1,
+  },
+  username: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.textPrimary,
+  },
+  timestamp: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  messageText: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
+    lineHeight: 24,
+  },
+  supportButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  supportButtonText: {
+    color: COLORS.textPrimary,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });

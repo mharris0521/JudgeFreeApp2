@@ -6,7 +6,6 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityInd
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
-import { COLORS } from '../lib/constants';
 
 export default function AlertDetailsScreen({ navigation }: { navigation: any }) {
   const [initialMessage, setInitialMessage] = useState('');

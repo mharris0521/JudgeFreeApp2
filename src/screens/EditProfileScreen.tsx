@@ -1,32 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, ScrollView, TouchableOpacity, Text, ActivityIndicator, StyleSheet, View, Alert } from 'react-native';
 import { useRoute } from '@react-navigation/native';
-import { Picker } from '@react-native-picker/picker';
 import { supabase } from '../lib/supabaseClient';
 import { useStore, Profile } from '../lib/store';
+import ProfileForm from '../components/ProfileForm';
+import { COLORS } from '../lib/constants';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function EditProfileScreen({ navigation }: { navigation: any }) {
   const route = useRoute();
   const params = route.params as { userId?: string };
-  const targetUserId = params?.userId;
+  const targetUserId = params?.userId; // This is the ID of the profile to edit, if passed (for admin)
 
   const loggedInProfile = useStore((state) => state.profile);
   const setLoggedInProfile = useStore((state) => state.setProfile);
 
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
-  
-  const [formData, setFormData] = useState({
+
+  // Local state to control visibility of professional/military pickers for users
+  const [showProfessionalPicker, setShowProfessionalPicker] = useState(false);
+  const [showMilitaryPicker, setShowMilitaryPicker] = useState(false);
+
+  // Profile data being edited. Initialize all relevant fields.
+  const [formData, setFormData] = useState<Partial<Profile>>({
     username: '', full_name: '', bio: '', age: '', phone_number: '',
     city: '', state_region: '', profession: '', mood_status: '',
     professional_type: '', military_branch: '',
+    professional_verified: false, // For admin to set, but initialize for all
+    military_verified: false,     // For admin to set, but initialize for all
   });
+
+  // Determine if the current context is an admin editing another user
+  const isEditingAnotherUser = (
+    targetUserId &&
+    targetUserId !== loggedInProfile?.id &&
+    loggedInProfile?.role &&
+    ['admin', 'super_admin'].includes(loggedInProfile.role)
+  );
 
   useEffect(() => {
     const loadProfile = async () => {
       let profileToEdit: any = null;
-      if (targetUserId) {
+      // Determine which profile to load: current user's or a target user's (for admin)
+      if (isEditingAnotherUser) {
+        // Admin is editing ANOTHER user's profile
         setInitializing(true);
         const { data, error } = await supabase.from('profiles').select('*').eq('id', targetUserId).single();
         if (error) {
@@ -35,8 +53,13 @@ export default function EditProfileScreen({ navigation }: { navigation: any }) {
           return;
         }
         profileToEdit = data;
-      } else {
+      } else if (loggedInProfile) {
+        // User is editing their OWN profile (or admin editing their own)
         profileToEdit = loggedInProfile;
+      } else {
+          // Fallback if not logged in and no target user (should be handled by auth flow)
+          setInitializing(false);
+          return;
       }
 
       if (profileToEdit) {
@@ -52,13 +75,21 @@ export default function EditProfileScreen({ navigation }: { navigation: any }) {
           mood_status: profileToEdit.mood_status || '',
           professional_type: profileToEdit.professional_type || '',
           military_branch: profileToEdit.military_branch || '',
+          professional_verified: profileToEdit.professional_verified || false,
+          military_verified: profileToEdit.military_verified || false,
         });
+
+        // Initialize user-facing toggles based on existing data
+        // If professional_type exists, user wants to show the picker
+        setShowProfessionalPicker(!!profileToEdit.professional_type);
+        // If military_branch exists, user wants to show the picker
+        setShowMilitaryPicker(!!profileToEdit.military_branch);
       }
       setInitializing(false);
     };
 
     loadProfile();
-  }, [targetUserId, loggedInProfile, navigation]);
+  }, [targetUserId, loggedInProfile, navigation, isEditingAnotherUser]);
 
 
   const handleUpdate = (key: string, value: any) => {
@@ -67,12 +98,13 @@ export default function EditProfileScreen({ navigation }: { navigation: any }) {
 
   const onSaveChanges = async () => {
     setLoading(true);
-    const updates = {
+
+    let updates: Partial<Profile> = {
       username: formData.username,
       full_name: formData.full_name,
       bio: formData.bio,
       phone_number: formData.phone_number,
-      age: parseInt(formData.age, 10) || null,
+      age: parseInt(formData.age as string, 10) || null,
       city: formData.city,
       state_region: formData.state_region,
       profession: formData.profession,
@@ -82,77 +114,80 @@ export default function EditProfileScreen({ navigation }: { navigation: any }) {
     };
 
     try {
-      if (targetUserId) {
-        // ADMIN ACTION
+      // If an admin is editing ANOTHER user's profile
+      if (isEditingAnotherUser) {
+        console.log("Admin attempting to update ANOTHER user's profile via admin-manager.");
+        updates.professional_verified = formData.professional_verified;
+        updates.military_verified = formData.military_verified;
+
         const { error } = await supabase.functions.invoke('admin-manager', {
-          body: { action: 'update_user_profile', payload: { target_user_id: targetUserId, updates } },
+          body: { action: 'update_user_profile', payload: { target_user_id: targetUserId, updates: updates } },
         });
         if (error) throw new Error(error.message);
-        Alert.alert("Success", "User profile has been updated.");
-      } else {
-        // PERSONAL ACTION
-        if (!loggedInProfile) throw new Error("Not logged in");
+        Alert.alert("Success", "User profile has been updated by admin.");
+      }
+      // If any user (including admin) is editing THEIR OWN profile
+      else if (loggedInProfile) {
+        console.log("Updating OWN profile directly via Supabase client.");
+        updates.professional_verified = formData.professional_verified;
+        updates.military_verified = formData.military_verified;
+
         const { data: updatedProfile, error } = await supabase.from('profiles').update(updates).eq('id', loggedInProfile.id).select().single();
         if (error) throw error;
         setLoggedInProfile(updatedProfile as Profile);
         Alert.alert("Success", "Your profile has been updated.");
+      } else {
+        throw new Error("No profile to update or insufficient permissions.");
       }
-      // UPDATED: Simply go back. This will return to the ProfileScreen.
+
       navigation.goBack();
     } catch (error: any) {
       Alert.alert("Error", error.message);
+      console.error("Profile update error:", error);
     } finally {
       setLoading(false);
     }
   };
-  
+
+  const title = isEditingAnotherUser ? `Editing @${formData.username}` : 'Edit Profile';
+
   if (initializing) {
-      return <SafeAreaView style={styles.container}><ActivityIndicator size="large" color="#FFF" /></SafeAreaView>
+      return (
+        <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </SafeAreaView>
+      );
   }
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView>
-        <View style={styles.header}><Text style={styles.headerTitle}>{targetUserId ? 'Editing @' + formData.username : 'Edit Profile'}</Text></View>
-        <View style={styles.form}>
-          <Text style={styles.label}>Public Username</Text>
-          <TextInput style={styles.input} value={formData.username} onChangeText={(val) => handleUpdate('username', val)} placeholder="@your_username" />
-          
-          <Text style={styles.label}>Full Name (Private)</Text>
-          <TextInput style={styles.input} value={formData.full_name} onChangeText={(val) => handleUpdate('full_name', val)} placeholder="e.g., Jane Doe" />
-
-          <Text style={styles.label}>Phone Number (Private)</Text>
-          <TextInput style={styles.input} value={formData.phone_number} onChangeText={val => handleUpdate('phone_number', val)} placeholder="e.g., 555-555-5555" keyboardType="phone-pad" />
-
-          <Text style={styles.label}>Bio</Text>
-          <TextInput style={[styles.input, styles.textArea]} value={formData.bio} onChangeText={(val) => handleUpdate('bio', val)} placeholder="Tell the community a little about yourself..." multiline />
-          
-          <Text style={styles.label}>Age</Text>
-          <TextInput style={styles.input} keyboardType="number-pad" value={formData.age} onChangeText={val => handleUpdate('age', val)} placeholder="Your age"/>
-          
-          <Text style={styles.label}>City</Text>
-          <TextInput style={styles.input} value={formData.city} onChangeText={val => handleUpdate('city', val)} placeholder="e.g., San Francisco" />
-          
-          <Text style={styles.label}>State/Region</Text>
-          <TextInput style={styles.input} value={formData.state_region} onChangeText={val => handleUpdate('state_region', val)} placeholder="e.g., CA" />
-
-          <Text style={styles.label}>Profession</Text>
-          <TextInput style={styles.input} value={formData.profession} onChangeText={val => handleUpdate('profession', val)} placeholder="e.g., Student, Engineer, etc." />
-
-          <Text style={styles.label}>Current Mood</Text>
-          <View style={styles.pickerContainer}><Picker selectedValue={formData.mood_status} onValueChange={(val) => handleUpdate('mood_status', val)} style={styles.picker} itemStyle={styles.pickerItem}><Picker.Item label="Not Set" value="" /><Picker.Item label="Great 😄" value="great" /><Picker.Item label="Good 😊" value="good" /><Picker.Item label="Not Bad 🙂" value="okay" /><Picker.Item label="Struggling 😟" value="struggling" /><Picker.Item label="Need Support 🆘" value="need_support" /><Picker.Item label="Critical 🚨" value="critical" /></Picker></View>
-          
-          <Text style={styles.label}>Professional Designation (for verification)</Text>
-          <View style={styles.pickerContainer}><Picker selectedValue={formData.professional_type} onValueChange={(val) => handleUpdate('professional_type', val)} style={styles.picker} itemStyle={styles.pickerItem}><Picker.Item label="None" value="" /><Picker.Item label="Paramedic" value="paramedic" /><Picker.Item label="Registered Nurse" value="registered_nurse" /><Picker.Item label="Counselor" value="counselor" /><Picker.Item label="Therapist" value="therapist" /><Picker.Item label="Social Worker" value="social_worker" /><Picker.Item label="Psychologist" value="psychologist" /><Picker.Item label="Psychiatrist" value="psychiatrist" /><Picker.Item label="Medical Doctor" value="medical_doctor" /></Picker></View>
-
-          <Text style={styles.label}>Military Service (for verification)</Text>
-          <View style={styles.pickerContainer}><Picker selectedValue={formData.military_branch} onValueChange={(val) => handleUpdate('military_branch', val)} style={styles.picker} itemStyle={styles.pickerItem}><Picker.Item label="Not Applicable" value="" /><Picker.Item label="Army" value="army" /><Picker.Item label="Navy" value="navy" /><Picker.Item label="Air Force" value="air_force" /><Picker.Item label="Marine Corps" value="marines" /><Picker.Item label="Coast Guard" value="coast_guard" /><Picker.Item label="Space Force" value="space_force" /></Picker></View>
-        
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>{title}</Text>
         </View>
-
+        <ProfileForm
+          initialData={formData}
+          onChange={handleUpdate}
+          isEditable={true}
+          isAdmin={isEditingAnotherUser}
+          fieldsToShow={[
+            'username', 'full_name', 'phone_number', 'bio', 'age', 'city', 'state_region', 'profession', 'mood_status',
+            // User-facing toggles (only for non-admin editing own profile)
+            ...(!isEditingAnotherUser ? ['user_professional_toggle', 'user_military_toggle'] : []),
+            // Pickers for designation (always shown if designated, or if admin is editing)
+            'professional_type',
+            'military_branch',
+            // Admin-only toggles (only if admin is editing another user)
+            ...(isEditingAnotherUser ? ['professional_verified', 'military_verified'] : [])
+          ]}
+          showProfessionalPicker={showProfessionalPicker}
+          setShowProfessionalPicker={setShowProfessionalPicker}
+          showMilitaryPicker={showMilitaryPicker}
+          setShowMilitaryPicker={setShowMilitaryPicker}
+        />
         <View style={styles.footer}>
             <TouchableOpacity style={styles.saveButton} onPress={onSaveChanges} disabled={loading}>{loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.buttonText}>Save Changes</Text>}</TouchableOpacity>
-            <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}><Text style={[styles.buttonText, {color: '#AAA'}]}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}><Text style={[styles.buttonText, {color: COLORS.textSecondary}]}>Cancel</Text></TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -160,18 +195,11 @@ export default function EditProfileScreen({ navigation }: { navigation: any }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#1A1A1A' },
-    header: { padding: 20, borderBottomWidth: 1, borderBottomColor: '#333' },
-    headerTitle: { fontSize: 28, fontWeight: 'bold', color: '#FFF', textAlign: 'center' },
-    form: { padding: 20 },
-    label: { color: '#AAA', fontSize: 16, marginBottom: 10, marginTop: 20 },
-    input: { backgroundColor: '#2C2C2E', color: '#FFF', borderRadius: 10, padding: 15, fontSize: 16 },
-    textArea: { minHeight: 120, textAlignVertical: 'top' },
-    pickerContainer: { backgroundColor: '#2C2C2E', borderRadius: 10, justifyContent: 'center' },
-    picker: { color: '#FFF' },
-    pickerItem: { color: '#FFF', backgroundColor: '#2C2C2E' },
+    container: { flex: 1, backgroundColor: COLORS.secondary },
+    header: { padding: 20, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+    headerTitle: { fontSize: 28, fontWeight: 'bold', color: COLORS.textPrimary, textAlign: 'center' },
     footer: { padding: 20, marginTop: 20 },
-    saveButton: { backgroundColor: '#3498db', paddingVertical: 18, borderRadius: 12, alignItems: 'center' },
-    cancelButton: { backgroundColor: 'transparent', paddingVertical: 18, borderRadius: 12, alignItems: 'center' },
-    buttonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
+    saveButton: { backgroundColor: COLORS.primary, paddingVertical: 18, borderRadius: 12, alignItems: 'center' },
+    cancelButton: { backgroundColor: 'transparent', paddingVertical: 18, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.disabled },
+    buttonText: { color: COLORS.textPrimary, fontSize: 18, fontWeight: 'bold' },
 });

@@ -53,3 +53,36 @@ entrypoint = "./functions/admin-manager/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/admin-manager/*.html" ]
+
+[functions.fetch-dashboard]
+enabled = true
+verify_jwt = true
+import_map = "./functions/fetch-dashboard/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/fetch-dashboard/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/fetch-dashboard/*.html" ]
+
+[functions.award-badges]
+enabled = true
+verify_jwt = true
+import_map = "./functions/award-badges/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/award-badges/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/award-badges/*.html" ]
+
+[functions.award-admin-badge]
+enabled = true
+verify_jwt = true
+import_map = "./functions/award-admin-badge/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/award-admin-badge/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/award-admin-badge/*.html" ]

@@ -1,3 +1,4 @@
+// src/App.tsx
 import 'react-native-url-polyfill/auto';
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
@@ -9,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { supabase } from './src/lib/supabaseClient';
 import { useStore, Profile } from './src/lib/store';
+import { COLORS } from './src/lib/constants'; // Fixed import path
 
 // Screen Imports
 import AuthScreen from './src/screens/AuthScreen';
@@ -22,7 +24,9 @@ import CrisisChatScreen from './src/screens/CrisisChatScreen';
 import AlertDetailsScreen from './src/screens/AlertDetailsScreen';
 import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
 import ActiveAlertScreen from './src/screens/ActiveAlertScreen';
-import LeaveFeedbackScreen from './src/screens/LeaveFeedbackScreen'; // <-- NEW IMPORT
+import LeaveFeedbackScreen from './src/screens/LeaveFeedbackScreen';
+import ReportsHubScreen from './src/screens/ReportsHubScreen';
+import PublicProfileScreen from './src/screens/PublicProfileScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -34,35 +38,67 @@ function MainTabNavigator() {
   const handleCrisisPress = async () => {
     if (!profile) return;
     try {
-        const { data, error } = await supabase
-            .from('crisis_alerts')
-            .select('id')
-            .eq('created_by', profile.id)
-            .eq('status', 'active')
-            .maybeSingle(); 
+      const { data, error } = await supabase
+        .from('crisis_alerts')
+        .select('id')
+        .eq('created_by', profile.id)
+        .eq('status', 'active')
+        .maybeSingle();
 
-        if (error) throw error;
-        
-        if (data) {
-            navigation.navigate('ActiveAlert', { alert_id: data.id });
-        } else {
-            navigation.navigate('AlertDetails');
-        }
+      if (error) throw error;
 
+      if (data) {
+        navigation.navigate('ActiveAlert', { alert_id: data.id });
+      } else {
+        navigation.navigate('AlertDetails');
+      }
     } catch (error: any) {
-        Alert.alert("Error", "Could not check your alert status. " + error.message);
+      Alert.alert('Error', 'Could not check your alert status. ' + error.message);
     }
   };
 
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false, tabBarShowLabel: false, tabBarStyle: styles.tabBar, tabBarActiveTintColor: '#3498db', tabBarInactiveTintColor: '#8e8e93' }}>
-      <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} /> }} />
-      <Tab.Screen name="MyChats" component={MyChatsScreen} options={{ tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles-outline" size={size} color={color} /> }} />
-      <Tab.Screen name="Panic" options={{ tabBarButton: () => (<TouchableOpacity style={styles.panicButtonContainer} onPress={handleCrisisPress}><Ionicons name="shield-half-outline" size={40} color="#fff" /></TouchableOpacity>) }}>
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarShowLabel: false,
+        tabBarStyle: styles.tabBar,
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: '#8e8e93',
+      }}
+    >
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} /> }}
+      />
+      <Tab.Screen
+        name="MyChats"
+        component={MyChatsScreen}
+        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles-outline" size={size} color={color} /> }}
+      />
+      <Tab.Screen
+        name="Panic"
+        options={{
+          tabBarButton: () => (
+            <TouchableOpacity style={styles.panicButtonContainer} onPress={handleCrisisPress}>
+              <Ionicons name="shield-half-outline" size={40} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+          ),
+        }}
+      >
         {() => null}
       </Tab.Screen>
-      <Tab.Screen name="CommunityAlerts" component={CommunityAlertsScreen} options={{ tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} /> }} />
-      <Tab.Screen name="Profile" component={ProfileScreen} options={{ tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} /> }} />
+      <Tab.Screen
+        name="CommunityAlerts"
+        component={CommunityAlertsScreen}
+        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} /> }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} /> }}
+      />
     </Tab.Navigator>
   );
 }
@@ -74,23 +110,49 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
-    supabase.auth.onAuthStateChange((_event, session) => { setSession(session); if (!isAuthReady) setIsAuthReady(true); });
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (!isAuthReady) setIsAuthReady(true);
+    });
   }, [setSession, isAuthReady]);
 
   useEffect(() => {
-    const fetchProfile = async () => { if (session?.user) { const { data, error } = await supabase.from('profiles').select(`*`).eq('id', session.user.id).single(); if (error) { Alert.alert("Error", "Could not fetch profile."); } else if (data) { setProfile(data as Profile); } } };
-    if (session) { fetchProfile(); } else { setProfile(null); }
+    const fetchProfile = async () => {
+      if (session?.user) {
+        const { data, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+        if (error) {
+          Alert.alert('Error', 'Could not fetch profile.');
+        } else if (data) {
+          setProfile(data as Profile);
+        }
+      }
+    };
+    if (session) {
+      fetchProfile();
+    } else {
+      setProfile(null);
+    }
   }, [session, setProfile]);
 
   useEffect(() => {
     if (!session?.user?.id) return;
     const privateChannel = supabase.channel(`private-notifications-for-${session.user.id}`);
-    privateChannel.on('broadcast', { event: 'offer_accepted' }, ({ payload }) => { Alert.alert( "Your Offer Was Accepted!", payload.message, [ { text: "Later" }, ]); }).subscribe();
-    return () => { supabase.removeChannel(privateChannel); };
+    privateChannel
+      .on('broadcast', { event: 'offer_accepted' }, ({ payload }) => {
+        Alert.alert('Your Offer Was Accepted!', payload.message, [{ text: 'Later' }]);
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(privateChannel);
+    };
   }, [session]);
 
   if (!isAuthReady) {
-    return (<View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1A1A1A' }}><ActivityIndicator size="large" color="#FFF" /></View>);
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.secondary }}>
+        <ActivityIndicator size="large" color={COLORS.textPrimary} />
+      </View>
+    );
   }
 
   return (
@@ -100,6 +162,7 @@ export default function App() {
           {session && session.user ? (
             <>
               <Stack.Screen name="MainApp" component={MainTabNavigator} />
+              <Stack.Screen name="PublicProfile" component={PublicProfileScreen} />
               <Stack.Screen name="ResponseInbox" component={ResponseInboxScreen} />
               <Stack.Screen name="CrisisChat" component={CrisisChatScreen} />
               <Stack.Screen name="LeaveFeedback" component={LeaveFeedbackScreen} options={{ presentation: 'modal' }} />
@@ -107,6 +170,7 @@ export default function App() {
               <Stack.Screen name="ActiveAlert" component={ActiveAlertScreen} options={{ presentation: 'modal' }} />
               <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ presentation: 'modal' }} />
               <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ presentation: 'modal' }} />
+              <Stack.Screen name="ReportsHub" component={ReportsHubScreen} options={{ presentation: 'modal' }} />
             </>
           ) : (
             <Stack.Screen name="Auth" component={AuthScreen} />
@@ -118,6 +182,29 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  tabBar: { position: 'absolute', bottom: 25, left: 20, right: 20, elevation: 0, backgroundColor: '#2C2C2E', borderRadius: 15, height: 70, borderTopWidth: 0 },
-  panicButtonContainer: { top: -30, justifyContent: 'center', alignItems: 'center', width: 70, height: 70, borderRadius: 35, backgroundColor: '#e74c3c', shadowColor: '#e74c3c', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 3.5, elevation: 5 },
+  tabBar: {
+    position: 'absolute',
+    bottom: 25,
+    left: 20,
+    right: 20,
+    elevation: 0,
+    backgroundColor: COLORS.secondary,
+    borderRadius: 15,
+    height: 70,
+    borderTopWidth: 0,
+  },
+  panicButtonContainer: {
+    top: -30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: COLORS.danger,
+    shadowColor: COLORS.danger,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.5,
+    elevation: 5,
+  },
 });

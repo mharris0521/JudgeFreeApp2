@@ -4,6 +4,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { COLORS } from '../lib/constants'; // Added COLORS import
 
 // A generic, styled badge component that the specific badges will use.
 const BaseBadge = ({ text, style, textStyle }: { text: string, style?: object, textStyle?: object }) => (
@@ -29,8 +30,8 @@ export const RoleBadge = ({ role }: { role: string }) => {
 
     return (
         <View style={[styles.badgeBase, config.style]}>
-            <Ionicons name={config.iconName} size={14} color='#FFF' style={{ marginRight: 5 }} />
-            <Text style={[styles.badgeText, {color: '#FFF'}]}>{config.text}</Text>
+            <Ionicons name={config.iconName} size={14} color={COLORS.textPrimary} style={{ marginRight: 5 }} />
+            <Text style={[styles.badgeText, {color: COLORS.textPrimary}]}>{config.text}</Text>
         </View>
     );
 };
@@ -100,7 +101,7 @@ export const BadgeDisplay = ({ profile, awardedBadges }: { profile: any, awarded
             <MilitaryVerifiedBadge branch={profile.military_branch} isVerified={profile.military_verified} />
             <ProfessionalVerifiedBadge type={profile.professional_type} isVerified={profile.professional_verified} />
             {awardedBadges.map(badge => (
-                <BaseBadge key={badge.id} text={badge.name} style={styles.achievement} textStyle={{ color: '#FFF' }}/>
+                <BaseBadge key={badge.id} text={badge.name} style={styles.achievement} textStyle={{ color: COLORS.textPrimary }}/>
             ))}
         </View>
     );
@@ -129,11 +130,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   // Role Styles (dark background, white text)
-  support: { backgroundColor: '#27ae60', borderColor: '#27ae60' },
-  moderator: { backgroundColor: '#2980b9', borderColor: '#2980b9' },
-  admin: { backgroundColor: '#8e44ad', borderColor: '#8e44ad' },
-  superAdmin: { backgroundColor: '#f39c12', borderColor: '#f39c12' },
-  achievement: { backgroundColor: '#d35400', borderColor: '#d35400' },
+  support: { backgroundColor: COLORS.success, borderColor: COLORS.success },
+  moderator: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  admin: { backgroundColor: COLORS.info, borderColor: COLORS.info },
+  superAdmin: { backgroundColor: COLORS.warning, borderColor: COLORS.warning },
+  achievement: { backgroundColor: COLORS.danger, borderColor: COLORS.danger },
 
   // Mood & Verification Styles (light background, dark text)
   moodGreat: { backgroundColor: '#d4edda', borderColor: '#c3e6cb' },

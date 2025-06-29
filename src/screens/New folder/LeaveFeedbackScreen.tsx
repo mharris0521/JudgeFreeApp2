@@ -2,10 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons'; // <-- THIS IMPORT WAS MISSING
 import { supabase } from '../lib/supabaseClient';
 import { useStore } from '../lib/store';
-import { COLORS } from '../lib/constants'; // Added COLORS import
 
 // A simple star rating component
 const StarRating = ({ rating, onRate }: { rating: number, onRate: (rate: number) => void }) => {
@@ -16,7 +15,7 @@ const StarRating = ({ rating, onRate }: { rating: number, onRate: (rate: number)
                     <Ionicons
                         name={star <= rating ? 'star' : 'star-outline'}
                         size={40}
-                        color={star <= rating ? COLORS.warning : COLORS.textSecondary}
+                        color={star <= rating ? '#f39c12' : '#777'}
                     />
                 </TouchableOpacity>
             ))}
@@ -77,7 +76,7 @@ export default function LeaveFeedbackScreen({ navigation }: { navigation: any })
         <TextInput
           style={styles.input}
           placeholder="e.g., 'They were a great listener and really helped me.'"
-          placeholderTextColor={COLORS.textSecondary}
+          placeholderTextColor="#888"
           value={comments}
           onChangeText={setComments}
           multiline
@@ -101,25 +100,25 @@ export default function LeaveFeedbackScreen({ navigation }: { navigation: any })
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.secondary },
+  container: { flex: 1, backgroundColor: '#1A1A1A' },
   header: { alignItems: 'center', paddingVertical: 30, paddingHorizontal: 20 },
-  headerTitle: { color: COLORS.textPrimary, fontSize: 26, fontWeight: 'bold' },
-  headerSubtitle: { color: COLORS.textSecondary, fontSize: 16, marginTop: 10, textAlign: 'center' },
+  headerTitle: { color: '#FFF', fontSize: 26, fontWeight: 'bold' },
+  headerSubtitle: { color: '#AAA', fontSize: 16, marginTop: 10, textAlign: 'center' },
   content: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
   starContainer: { flexDirection: 'row', justifyContent: 'center', marginVertical: 30 },
-  label: { color: COLORS.textSecondary, fontSize: 16, marginBottom: 10, marginTop: 20 },
+  label: { color: '#AAA', fontSize: 16, marginBottom: 10, marginTop: 20 },
   input: {
-    backgroundColor: COLORS.tertiary,
-    color: COLORS.textPrimary,
+    backgroundColor: '#2C2C2E',
+    color: '#FFF',
     borderRadius: 10,
     padding: 15,
     fontSize: 16,
     minHeight: 120,
     textAlignVertical: 'top',
   },
-  footer: { padding: 20, borderTopWidth: 1, borderTopColor: COLORS.border },
+  footer: { padding: 20, borderTopWidth: 1, borderTopColor: '#333' },
   button: { paddingVertical: 18, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  submitButton: { backgroundColor: COLORS.success },
-  cancelButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: COLORS.disabled },
-  buttonText: { color: COLORS.textPrimary, fontSize: 18, fontWeight: 'bold' },
+  submitButton: { backgroundColor: '#27ae60' },
+  cancelButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#555' },
+  buttonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
 });

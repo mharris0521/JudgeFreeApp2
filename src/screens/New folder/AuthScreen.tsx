@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabaseClient';
-import { COLORS } from '../lib/constants'; // Added COLORS import
 
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
@@ -47,7 +46,7 @@ export default function AuthScreen() {
           value={email}
           placeholder="email@address.com"
           autoCapitalize={'none'}
-          placeholderTextColor={COLORS.textSecondary}
+          placeholderTextColor="#888"
         />
       </View>
       <View style={styles.verticallySpaced}>
@@ -58,14 +57,14 @@ export default function AuthScreen() {
           secureTextEntry={true}
           placeholder="Password"
           autoCapitalize={'none'}
-          placeholderTextColor={COLORS.textSecondary}
+          placeholderTextColor="#888"
         />
       </View>
       <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Button title="Sign in" disabled={loading} onPress={() => signInWithEmail()} color={COLORS.primary} />
+        <Button title="Sign in" disabled={loading} onPress={() => signInWithEmail()} />
       </View>
       <View style={styles.verticallySpaced}>
-        <Button title="Sign up" disabled={loading} onPress={() => signUpWithEmail()} color={COLORS.primary} />
+        <Button title="Sign up" disabled={loading} onPress={() => signUpWithEmail()} />
       </View>
     </SafeAreaView>
   );
@@ -75,11 +74,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: '#1A1A1A',
     justifyContent: 'center',
   },
   header: {
-    color: COLORS.textPrimary,
+    color: '#FFF',
     fontSize: 40,
     fontWeight: 'bold',
     textAlign: 'center',
@@ -95,11 +94,11 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 50,
-    borderColor: COLORS.disabled,
+    borderColor: '#555',
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 15,
-    color: COLORS.textPrimary,
-    backgroundColor: COLORS.tertiary,
+    color: '#FFF',
+    backgroundColor: '#333',
   },
 });
