@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
-console.log("Award Badges (v1.4) initializing.");
+console.log("Award Badges (v1.5) initializing.");
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -47,6 +47,8 @@ Deno.serve(async (req) => {
       responseCount = alertsData?.length || 0; // Count of valid responses
     }
 
+    console.log(`Response count for ${userId}: ${responseCount}`);
+
     // Check milestones and award badges
     const { data: badgesData, error: badgesError } = await adminClient
       .from('badges')
@@ -61,16 +63,25 @@ Deno.serve(async (req) => {
     }) || [];
 
     for (const badge of eligibleBadges) {
-      const { error: insertError } = await adminClient
+      // Check if badge is already awarded
+      const { data: existingAward, error: checkError } = await adminClient
         .from('user_badges')
-        .insert({
-          user_id: userId,
-          badge_id: badge.id,
-          earned_at: new Date().toISOString(),
-        })
-        .onConflict(['user_id', 'badge_id'])
-        .doNothing();
-      if (insertError) throw insertError;
+        .select('id')
+        .eq('user_id', userId)
+        .eq('badge_id', badge.id)
+        .single();
+      if (checkError && checkError.code !== 'PGRST116') continue; // PGRST116 means no rows, proceed to award
+      if (!existingAward) {
+        const { error: insertError } = await adminClient
+          .from('user_badges')
+          .insert({
+            user_id: userId,
+            badge_id: badge.id,
+            earned_at: new Date().toISOString(),
+          });
+        if (insertError) throw insertError;
+        console.log(`Awarded badge ${badge.name} to ${userId}`);
+      }
     }
 
     return new Response(

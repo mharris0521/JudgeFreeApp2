@@ -165,27 +165,27 @@ export default function CommunityAlertsScreen({ navigation }: { navigation: any 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.secondaryBlue, // Changed from COLORS.secondary
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 15,
+    paddingHorizontal: 15, // Adjusted to match HomeScreen
+    paddingVertical: 15, // Adjusted to match HomeScreen
+    alignItems: 'center', // Aligned to center
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    alignItems: 'center',
+    borderBottomColor: COLORS.border, // Changed from COLORS.border
+    marginBottom: 20, // Added to match HomeScreen
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: COLORS.textPrimary,
+    color: COLORS.textPrimary, // Kept for consistency
     textAlign: 'center',
   },
   headerSubtitle: {
     fontSize: 16,
-    color: COLORS.textSecondary,
+    color: COLORS.textSecondary, // Kept for consistency
     textAlign: 'center',
-    marginTop: 10,
+    marginTop: 5, // Adjusted to match HomeScreen
   },
   loadingIndicator: {
     flex: 1,
@@ -193,7 +193,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listContent: {
-    paddingVertical: 10,
+    paddingVertical: 20, // Adjusted to match HomeScreen scroll content padding
+    paddingHorizontal: 15, // Adjusted to match HomeScreen scroll content padding
   },
   listEmptyContent: {
     flexGrow: 1,
@@ -204,26 +205,38 @@ const styles = StyleSheet.create({
   emptyContainer: {
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: COLORS.tertiaryBlue, // Match card background
+    marginHorizontal: 15, // Match card horizontal margin
+    borderRadius: 12, // Match card border radius
+    padding: 20, // Consistent padding
+    minHeight: 200, // Ensure it has some height
   },
   emptyText: {
-    color: COLORS.textSecondary,
+    color: COLORS.textDark, // Match card title text
     fontSize: 18,
     marginTop: 20,
     fontWeight: 'bold',
     textAlign: 'center',
   },
   emptySubtext: {
-    color: COLORS.textSecondary,
+    color: COLORS.darkGrey, // Match card subtitle text
     fontSize: 16,
     marginTop: 10,
     textAlign: 'center',
+    paddingHorizontal: 10,
   },
   card: {
-    backgroundColor: COLORS.tertiary,
-    borderRadius: 15,
-    padding: 20,
+    backgroundColor: COLORS.tertiaryBlue, // Changed from COLORS.tertiary
+    borderRadius: 12, // Adjusted to match HomeScreen cards
+    padding: 15, // Adjusted to match HomeScreen cards
     marginVertical: 8,
-    marginHorizontal: 10,
+    marginHorizontal: 0, // Removed horizontal margin to use listContent padding
+    shadowColor: '#000', // Added shadow properties
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+    marginBottom: 10, // Consistent spacing between cards
   },
   cardHeader: {
     flexDirection: 'row',
@@ -235,12 +248,14 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     marginRight: 15,
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.primaryBlue, // Changed to primaryBlue
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1, // Added border
+    borderColor: COLORS.accentLight, // Added border color
   },
   avatarText: {
-    color: COLORS.textPrimary,
+    color: COLORS.textPrimary, // White text
     fontSize: 24,
     fontWeight: 'bold',
   },
@@ -250,7 +265,7 @@ const styles = StyleSheet.create({
   username: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.textPrimary,
+    color: COLORS.textDark, // Changed from COLORS.textPrimary for better contrast on light cards
   },
   timestamp: {
     fontSize: 14,
@@ -259,19 +274,19 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 16,
-    color: COLORS.textSecondary,
+    color: COLORS.darkGrey, // Changed from COLORS.textSecondary for consistency with HomeScreen subtitles
     fontStyle: 'italic',
     lineHeight: 24,
   },
   supportButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 15,
+    backgroundColor: COLORS.primaryBlue, // Changed from COLORS.primary
+    paddingVertical: 12, // Adjusted for slightly smaller buttons
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 20,
   },
   supportButtonText: {
-    color: COLORS.textPrimary,
+    color: COLORS.textPrimary, // White text
     fontSize: 16,
     fontWeight: 'bold',
   },

@@ -4,11 +4,10 @@ import { useRoute } from '@react-navigation/native';
 import { supabase } from '../lib/supabaseClient';
 import { useStore } from '../lib/store';
 import ProfileForm from '../components/ProfileForm';
-import { BadgeDisplay } from '../components/BadgeComponents';
+import { VerificationBadgeDisplay, AwardBadgeDisplay } from '../components/BadgeComponents';
 import { Alert } from 'react-native';
 import { COLORS } from '../lib/constants';
 
-// Assuming Profile interface is defined in '../lib/store'
 interface Profile {
   id: string;
   username: string;
@@ -22,15 +21,14 @@ interface Profile {
   professional_verified: boolean;
   military_branch: string | null;
   military_verified: boolean;
-  role: string; // Add role if it's part of the profile you fetch
+  role: string;
 }
-
 
 const PublicProfileScreen = ({ navigation }: { navigation: any }) => {
   const { userId } = useRoute().params || {};
   const loggedInProfile = useStore((state) => state.profile);
   const [profileData, setProfileData] = useState<Partial<Profile>>({});
-  const [awardedBadges, setAwardedBadges] = useState<any[]>([]);
+  const [awardedBadges, setAwardedBadges] = useState<{ id: number; name: string; icon_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const isOwnProfile = userId === loggedInProfile?.id;
 
@@ -39,7 +37,7 @@ const PublicProfileScreen = ({ navigation }: { navigation: any }) => {
       try {
         const selectFields = isOwnProfile
           ? '*'
-          : 'id, username, bio, city, state_region, profession, mood_status, professional_type, professional_verified, military_branch, military_verified, role'; // Added 'role' to public fields
+          : 'id, username, bio, city, state_region, profession, mood_status, professional_type, professional_verified, military_branch, military_verified, role';
         const { data, error } = await supabase
           .from('profiles')
           .select(selectFields)
@@ -50,7 +48,7 @@ const PublicProfileScreen = ({ navigation }: { navigation: any }) => {
 
         const { data: badgeData, error: badgeError } = await supabase
           .from('user_badges')
-          .select('badges ( id, name )')
+          .select('badges ( id, name, icon_name )')
           .eq('user_id', userId);
         if (badgeError) throw badgeError;
         setAwardedBadges(badgeData?.map(item => item.badges).filter(Boolean) || []);
@@ -62,7 +60,7 @@ const PublicProfileScreen = ({ navigation }: { navigation: any }) => {
       }
     };
     fetchProfile();
-  }, [userId, isOwnProfile, navigation]); // Added navigation to dependency array
+  }, [userId, isOwnProfile, navigation]);
 
   if (loading) {
     return (
@@ -82,14 +80,15 @@ const PublicProfileScreen = ({ navigation }: { navigation: any }) => {
           />
           <Text style={styles.headerTitle}>@{profileData.username}</Text>
         </View>
-        <BadgeDisplay profile={profileData} awardedBadges={awardedBadges} />
+        <VerificationBadgeDisplay profile={profileData} />
+        <Text style={styles.sectionTitle}>Honor Room</Text>
+        <AwardBadgeDisplay awardedBadges={awardedBadges} />
         <ProfileForm
           initialData={profileData}
-          onChange={() => {}} // No-op for read-only
+          onChange={() => {}}
           isEditable={false}
           fieldsToShow={['username', 'bio', 'city', 'state_region', 'profession', 'mood_status', 'professional_type', 'military_branch']}
         />
-        {/* Placeholder for vibes score */}
         <View style={styles.vibesContainer}>
           <Text style={styles.vibesText}>Vibes Score: Coming Soon</Text>
         </View>
@@ -103,6 +102,7 @@ const styles = StyleSheet.create({
   header: { alignItems: 'center', padding: 20 },
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: COLORS.textPrimary },
   avatar: { width: 120, height: 120, borderRadius: 60, marginBottom: 15, borderWidth: 2, borderColor: COLORS.primary },
+  sectionTitle: { fontSize: 20, fontWeight: 'bold', color: COLORS.textPrimary, paddingHorizontal: 10, marginTop: 15 },
   vibesContainer: { padding: 20, alignItems: 'center' },
   vibesText: { color: COLORS.textPrimary, fontSize: 16, fontWeight: 'bold' },
 });

@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { supabase } from './src/lib/supabaseClient';
 import { useStore, Profile } from './src/lib/store';
-import { COLORS } from './src/lib/constants'; // Fixed import path
+import { COLORS } from './src/lib/constants';
 
 // Screen Imports
 import AuthScreen from './src/screens/AuthScreen';
@@ -27,6 +27,7 @@ import ActiveAlertScreen from './src/screens/ActiveAlertScreen';
 import LeaveFeedbackScreen from './src/screens/LeaveFeedbackScreen';
 import ReportsHubScreen from './src/screens/ReportsHubScreen';
 import PublicProfileScreen from './src/screens/PublicProfileScreen';
+
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -59,46 +60,74 @@ function MainTabNavigator() {
 
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-        tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: '#8e8e93',
-      }}
+    screenOptions={({ route }) => ({
+    headerShown: false,
+    tabBarShowLabel: false,
+    tabBarStyle: styles.tabBar,
+    tabBarActiveTintColor: COLORS.accentLight, // Active icons remain bright blue
+    // Removed: tabBarInactiveTintColor: COLORS.textSecondary, // This is overridden by iconWrapper and icon color
+    tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+
+          // Determine base icon name (outline for inactive, filled for active)
+          if (route.name === 'Home') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'MyChats') {
+            iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
+          } else if (route.name === 'CommunityAlerts') {
+            iconName = focused ? 'people' : 'people-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          } else {
+            // Default or fallback icon (shouldn't be reached for defined tabs)
+            iconName = 'help-circle-outline';
+          }
+
+         return (
+            <View style={[
+              styles.iconWrapper,
+              focused && styles.iconWrapperFocused,
+              !focused && styles.iconWrapperInactive,
+            ]}>
+              <Ionicons
+                name={iconName}
+                size={size * 1.1}
+                // *** CHANGE THIS LINE ***
+                // When focused, use a color that contrasts with COLORS.accentLight (the wrapper background)
+                color={focused ? COLORS.primaryBlue : COLORS.accentLight} // Example: Use primaryBlue for active icon
+              />
+            </View>
+          );
+        },
+      })}
     >
-      <Tab.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} /> }}
-      />
-      <Tab.Screen
-        name="MyChats"
-        component={MyChatsScreen}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles-outline" size={size} color={color} /> }}
-      />
+      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="MyChats" component={MyChatsScreen} />
       <Tab.Screen
         name="Panic"
-        options={{
-          tabBarButton: () => (
-            <TouchableOpacity style={styles.panicButtonContainer} onPress={handleCrisisPress}>
-              <Ionicons name="shield-half-outline" size={40} color={COLORS.textPrimary} />
+        options={({ focused }) => ({
+          tabBarButton: (props) => (
+            <TouchableOpacity
+              {...props}
+              style={[
+                styles.panicButtonContainer,
+                focused && styles.panicButtonFocused
+              ]}
+              onPress={handleCrisisPress}
+            >
+              <Ionicons
+                name="shield-half-outline"
+                size={40}
+                color={focused ? COLORS.primaryBlue : COLORS.textPrimary} // Inner icon color changes
+              />
             </TouchableOpacity>
           ),
-        }}
+        })}
       >
         {() => null}
       </Tab.Screen>
-      <Tab.Screen
-        name="CommunityAlerts"
-        component={CommunityAlertsScreen}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} /> }}
-      />
-      <Tab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{ tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} /> }}
-      />
+      <Tab.Screen name="CommunityAlerts" component={CommunityAlertsScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
@@ -149,7 +178,7 @@ export default function App() {
 
   if (!isAuthReady) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.secondary }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.secondaryBlue }}>
         <ActivityIndicator size="large" color={COLORS.textPrimary} />
       </View>
     );
@@ -184,17 +213,22 @@ export default function App() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    bottom: 25,
+    bottom: 15,
     left: 20,
     right: 20,
-    elevation: 0,
-    backgroundColor: COLORS.secondary,
-    borderRadius: 15,
-    height: 70,
+    elevation: 5,
+    backgroundColor: COLORS.primaryBlue,
+    borderRadius: 20,
+    height: 75,
     borderTopWidth: 0,
+    shadowColor: COLORS.primaryBlue,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    paddingBottom: 0,
   },
   panicButtonContainer: {
-    top: -30,
+    top: -20,
     justifyContent: 'center',
     alignItems: 'center',
     width: 70,
@@ -203,8 +237,33 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.danger,
     shadowColor: COLORS.danger,
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.5,
-    elevation: 5,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: COLORS.accentLight,
+  },
+  panicButtonFocused: {
+    backgroundColor: COLORS.accentLight,
+    borderColor: COLORS.danger, // Or COLORS.primaryBlue if you want blue outline here
+    shadowColor: COLORS.accentLight,
+  },
+  // New styles for tab icons
+  iconWrapper: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 45, // Size of the tappable area/wrapper
+    height: 45,
+    borderRadius: 22.5, // Make it round
+    marginTop: 10, // <--- ADD THIS LINE to lower the icons
+  },
+  iconWrapperInactive: {
+    borderWidth: 2, // Blue outline when inactive
+    borderColor: COLORS.primaryBlue, // Blue border color
+    backgroundColor: 'transparent', // Transparent background
+  },
+  iconWrapperFocused: {
+    backgroundColor: COLORS.accentLight, // Full light blue background when focused
+    borderColor: 'transparent', // No border when filled
   },
 });

@@ -58,11 +58,50 @@ export default function AdminDashboardScreen({ navigation }: { navigation: any }
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [roleModalVisible, setRoleModalVisible] = useState(false);
+  const [badgeModalVisible, setBadgeModalVisible] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [selectedRole, setSelectedRole] = useState<Profile['role']>('user');
   const [selectedBadgeId, setSelectedBadgeId] = useState<number | null>(null);
+  const [localBadges, setLocalBadges] = useState<{ id: number; name: string }[]>([]);
   const currentUser = useStore((state) => state.profile);
+
+  console.log('AdminDashboardScreen rendering with currentUser:', currentUser);
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        const badgesPromise = supabase.from('badges').select('id, name');
+        const profilesPromise = supabase
+          .from('profiles')
+          .select('id, username, role, avatar_url, full_name, professional_type, professional_verified, military_branch, military_verified')
+          .order('role', { ascending: false });
+
+        const [badgesData, profilesData] = await Promise.all([badgesPromise, profilesPromise]);
+        if (badgesData.error) throw badgesData.error;
+        if (profilesData.error) throw profilesData.error;
+        setLocalBadges(badgesData.data || []);
+        setProfiles(profilesData.data || []);
+      } catch (error: any) {
+        Alert.alert('Error', 'Could not fetch initial data. ' + error.message);
+        console.error('Error fetching initial data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInitialData();
+
+    const profilesChannel = supabase.channel('admin-dashboard-profiles')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload) => {
+        console.log('Profile change detected, refetching admin profiles:', payload);
+        fetchProfiles();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(profilesChannel);
+    };
+  }, [currentUser]);
 
   const fetchProfiles = async () => {
     if (!currentUser) {
@@ -86,29 +125,14 @@ export default function AdminDashboardScreen({ navigation }: { navigation: any }
     }
   };
 
-  useEffect(() => {
-    fetchProfiles();
-
-    const profilesChannel = supabase.channel('admin-dashboard-profiles')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, (payload) => {
-            console.log('Profile change detected, refetching admin profiles:', payload);
-            fetchProfiles();
-        })
-        .subscribe();
-
-    return () => {
-        supabase.removeChannel(profilesChannel);
-    };
-  }, [currentUser]);
-
   const openRoleModal = (profile: Profile) => {
     if (currentUser?.role !== 'super_admin' || profile.id === currentUser?.id) {
-        Alert.alert("Permission Denied", "You do not have permission to change this user's role.");
-        return;
+      Alert.alert("Permission Denied", "You do not have permission to change this user's role.");
+      return;
     }
     setSelectedProfile(profile);
     setSelectedRole(profile.role);
-    setModalVisible(true);
+    setRoleModalVisible(true);
   };
 
   const handleSetRole = async () => {
@@ -127,7 +151,7 @@ export default function AdminDashboardScreen({ navigation }: { navigation: any }
 
       if (error) throw new Error(error.message);
       Alert.alert('Success', `${selectedProfile.username}'s role has been updated.`);
-      setModalVisible(false);
+      setRoleModalVisible(false);
       fetchProfiles();
     } catch (error: any) {
       Alert.alert('Error', `Could not update role. ${error.message}`);
@@ -138,34 +162,34 @@ export default function AdminDashboardScreen({ navigation }: { navigation: any }
   };
 
   const handleSetVerification = async (profileId: string, type: 'professional' | 'military', status: boolean) => {
-      setIsUpdating(`${type}-${profileId}`);
-      try {
-          const { error } = await supabase.functions.invoke('admin-manager', {
-            body: {
-              action: 'set_verification_status',
-              payload: {
-                target_user_id: profileId,
-                type: type,
-                status: status,
-              },
-            },
-          });
-          if (error) throw new Error(error.message);
+    setIsUpdating(`${type}-${profileId}`);
+    try {
+      const { error } = await supabase.functions.invoke('admin-manager', {
+        body: {
+          action: 'set_verification_status',
+          payload: {
+            target_user_id: profileId,
+            type: type,
+            status: status,
+          },
+        },
+      });
+      if (error) throw new Error(error.message);
 
-          Alert.alert('Success', `The user's ${type} designation has been ${status ? 'verified' : 'un-verified'}.`);
-          fetchProfiles();
-      } catch (error: any) {
-          Alert.alert('Error', `Could not set verification status. ${error.message}`);
-          console.error('Error setting verification:', error);
-      } finally {
-          setIsUpdating(null);
-      }
+      Alert.alert('Success', `The user's ${type} designation has been ${status ? 'verified' : 'un-verified'}.`);
+      fetchProfiles();
+    } catch (error: any) {
+      Alert.alert('Error', `Could not set verification status. ${error.message}`);
+      console.error('Error setting verification:', error);
+    } finally {
+      setIsUpdating(null);
+    }
   };
 
-  const handleViewProfile = (userId: string) => {
+  const handleViewProfile = (profileId: string) => {
     navigation.navigate('MainApp', {
       screen: 'Profile',
-      params: { userId: userId },
+      params: { userId: profileId },
     });
   };
 
@@ -177,131 +201,86 @@ export default function AdminDashboardScreen({ navigation }: { navigation: any }
 
     setIsUpdating(`badge-${profileId}`);
     try {
-      const { error } = await supabase.functions.invoke('award-admin-badge', {
-        body: { user_id: profileId, badge_id: selectedBadgeId || 8 }, // Default to Hero (8) if not selected
+      console.log(`Attempting to award badge ${selectedBadgeId} to ${profileId} by ${currentUser.id} via award-admin-badge`);
+      const { error, data } = await supabase.functions.invoke('award-admin-badge', {
+        body: { user_id: profileId, badge_id: selectedBadgeId || 8 },
       });
-      if (error) throw error;
+      if (error) {
+        console.error('Award error:', error.message, error.details);
+        throw new Error(`Failed to award badge: ${error.message}`);
+      }
+      console.log('Award response:', data);
       Alert.alert('Success', 'Badge awarded successfully.');
-      fetchProfiles(); // Refresh to reflect changes if needed
+      fetchProfiles();
     } catch (error: any) {
-      Alert.alert('Error', 'Failed to award badge: ' + error.message);
+      Alert.alert('Error', error.message);
     } finally {
       setIsUpdating(null);
-      setSelectedBadgeId(null); // Reset selection
+      setSelectedBadgeId(null);
     }
   };
 
-  const fetchBadges = async () => {
-    const { data, error } = await supabase.from('badges').select('id, name');
-    if (error) throw error;
-    return data || [];
+  const openBadgeModal = (profile: Profile) => {
+    setSelectedProfile(profile);
+    setBadgeModalVisible(true);
   };
 
-  const renderProfileItem = ({ item }: { item: Profile }) => {
-    const [badgeModalVisible, setBadgeModalVisible] = useState(false);
-    const [localBadges, setLocalBadges] = useState<{ id: number; name: string }[]>([]);
-
-    useEffect(() => {
-      fetchBadges().then(setLocalBadges).catch(console.error);
-    }, []);
-
-    return (
-      <TouchableOpacity
-        onPress={() => handleViewProfile(item.id)}
-        style={styles.userCard}
-      >
-        <View style={styles.cardHeader}>
-          <Image
-            source={{ uri: item.avatar_url || `${COLORS.DEFAULT_AVATAR_URL}${item.username?.charAt(0).toUpperCase() || 'U'}` }}
-            style={styles.avatar}
-          />
-          <View style={styles.userInfo}>
-            <Text style={styles.username}>@{item.username}</Text>
-            <Text style={styles.fullName}>{item.full_name || 'No full name'}</Text>
-          </View>
-          <TouchableOpacity onPress={() => openRoleModal(item)} disabled={currentUser?.role !== 'super_admin' || item.id === currentUser?.id}>
-            <View style={[styles.roleContainer, {backgroundColor: getRoleColor(item.role)}]}>
-              <Text style={styles.roleText}>{item.role.toUpperCase()}</Text>
-            </View>
-          </TouchableOpacity>
+  const renderProfileItem = ({ item }: { item: Profile }) => (
+    <TouchableOpacity
+      onPress={() => handleViewProfile(item.id)}
+      style={styles.userCard}
+    >
+      <View style={styles.cardHeader}>
+        <Image
+          source={{ uri: item.avatar_url || `${COLORS.DEFAULT_AVATAR_URL}${item.username?.charAt(0).toUpperCase() || 'U'}` }}
+          style={styles.avatar}
+        />
+        <View style={styles.userInfo}>
+          <Text style={styles.username}>@{item.username}</Text>
+          <Text style={styles.fullName}>{item.full_name || 'No full name'}</Text>
         </View>
-        <View style={styles.verificationContainer}>
-          <VerificationLine
-            label="Military"
-            value={item.military_branch}
-            isVerified={item.military_verified}
-            onVerify={() => handleSetVerification(item.id, 'military', true)}
-            onUnverify={() => handleSetVerification(item.id, 'military', false)}
-            isUpdating={isUpdating === `military-${item.id}`}
-          />
-          <VerificationLine
-            label="Professional"
-            value={item.professional_type}
-            isVerified={item.professional_verified}
-            onVerify={() => handleSetVerification(item.id, 'professional', true)}
-            onUnverify={() => handleSetVerification(item.id, 'professional', false)}
-            isUpdating={isUpdating === `professional-${item.id}`}
-          />
-          {['admin', 'super_admin'].includes(currentUser?.role) && (
-            <View style={styles.verificationRow}>
-              <Text style={styles.verificationLabel}>Award Badge:</Text>
-              <TouchableOpacity
-                style={[styles.verifyButton, styles.awardButton]}
-                onPress={() => setBadgeModalVisible(true)}
-                disabled={isUpdating === `badge-${item.id}`}
-              >
-                {isUpdating === `badge-${item.id}` ? (
-                  <ActivityIndicator size="small" color={COLORS.textPrimary} />
-                ) : (
-                  <Text style={styles.verifyButtonText}>Award</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={badgeModalVisible}
-          onRequestClose={() => setBadgeModalVisible(false)}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalView}>
-              <Text style={styles.modalTitle}>Award Badge to @{item.username}</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={selectedBadgeId}
-                  onValueChange={(itemValue) => setSelectedBadgeId(itemValue)}
-                  style={styles.picker}
-                  itemStyle={styles.pickerItem}
-                >
-                  <Picker.Item key="default" label="Select a badge..." value={null} />
-                  {localBadges.map((badge) => (
-                    <Picker.Item key={badge.id} label={badge.name} value={badge.id} />
-                  ))}
-                </Picker>
-              </View>
-              <TouchableOpacity
-                style={[styles.modalButton, isUpdating === `badge-${item.id}` && styles.modalButtonDisabled]}
-                onPress={() => { handleAwardBadge(item.id); setBadgeModalVisible(false); }}
-                disabled={isUpdating === `badge-${item.id}` || !selectedBadgeId}
-              >
-                {isUpdating === `badge-${item.id}` ? (
-                  <ActivityIndicator color={COLORS.textPrimary} />
-                ) : (
-                  <Text style={styles.modalButtonText}>Confirm Award</Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setBadgeModalVisible(false)}>
-                <Text style={styles.modalCancel}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+        <TouchableOpacity onPress={() => openRoleModal(item)} disabled={currentUser?.role !== 'super_admin' || item.id === currentUser?.id}>
+          <View style={[styles.roleContainer, {backgroundColor: getRoleColor(item.role)}]}>
+            <Text style={styles.roleText}>{item.role.toUpperCase()}</Text>
           </View>
-        </Modal>
-      </TouchableOpacity>
-    );
-  };
+        </TouchableOpacity>
+      </View>
+      <View style={styles.verificationContainer}>
+        <VerificationLine
+          label="Military"
+          value={item.military_branch}
+          isVerified={item.military_verified}
+          onVerify={() => handleSetVerification(item.id, 'military', true)}
+          onUnverify={() => handleSetVerification(item.id, 'military', false)}
+          isUpdating={isUpdating === `military-${item.id}`}
+        />
+        <VerificationLine
+          label="Professional"
+          value={item.professional_type}
+          isVerified={item.professional_verified}
+          onVerify={() => handleSetVerification(item.id, 'professional', true)}
+          onUnverify={() => handleSetVerification(item.id, 'professional', false)}
+          isUpdating={isUpdating === `professional-${item.id}`}
+        />
+        {['admin', 'super_admin'].includes(currentUser?.role) && (
+          <View style={styles.verificationRow}>
+            <Text style={styles.verificationLabel}>Award Badge:</Text>
+            <TouchableOpacity
+              style={[styles.verifyButton, styles.awardButton]}
+              onPress={() => openBadgeModal(item)}
+              disabled={isUpdating === `badge-${item.id}`}
+            >
+              {isUpdating === `badge-${item.id}` ? (
+                <ActivityIndicator size="small" color={COLORS.textPrimary} />
+              ) : (
+                <Text style={styles.verifyButtonText}>Award</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
 
   const getRoleColor = (role: Profile['role']) => {
     switch(role) {
@@ -312,11 +291,11 @@ export default function AdminDashboardScreen({ navigation }: { navigation: any }
     }
   };
 
-  if (!currentUser) {
+  if (!currentUser || loading || localBadges.length === 0) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.errorText}>Loading user data...</Text>
+        <Text style={styles.errorText}>Loading admin data...</Text>
       </SafeAreaView>
     );
   }
@@ -337,8 +316,8 @@ export default function AdminDashboardScreen({ navigation }: { navigation: any }
       <Modal
         animationType="slide"
         transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
+        visible={roleModalVisible}
+        onRequestClose={() => setRoleModalVisible(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalView}>
@@ -356,7 +335,47 @@ export default function AdminDashboardScreen({ navigation }: { navigation: any }
             <TouchableOpacity style={[styles.modalButton, isUpdating && styles.modalButtonDisabled]} onPress={handleSetRole} disabled={!!isUpdating}>
               {isUpdating ? <ActivityIndicator color={COLORS.textPrimary} /> : <Text style={styles.modalButtonText}>Confirm Change</Text>}
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
+            <TouchableOpacity onPress={() => setRoleModalVisible(false)}>
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={badgeModalVisible}
+        onRequestClose={() => setBadgeModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalTitle}>Award Badge to @{selectedProfile?.username}</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={selectedBadgeId}
+                onValueChange={(itemValue) => setSelectedBadgeId(itemValue)}
+                style={styles.picker}
+                itemStyle={styles.pickerItem}
+              >
+                <Picker.Item key="default" label="Select a badge..." value={null} />
+                {localBadges.map((badge) => (
+                  <Picker.Item key={badge.id} label={badge.name} value={badge.id} />
+                ))}
+              </Picker>
+            </View>
+            <TouchableOpacity
+              style={[styles.modalButton, isUpdating === `badge-${selectedProfile?.id}` && styles.modalButtonDisabled]}
+              onPress={() => { handleAwardBadge(selectedProfile?.id || ''); setBadgeModalVisible(false); }}
+              disabled={isUpdating === `badge-${selectedProfile?.id}` || !selectedBadgeId}
+            >
+              {isUpdating === `badge-${selectedProfile?.id}` ? (
+                <ActivityIndicator color={COLORS.textPrimary} />
+              ) : (
+                <Text style={styles.modalButtonText}>Confirm Award</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setBadgeModalVisible(false)}>
               <Text style={styles.modalCancel}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -380,19 +399,15 @@ export default function AdminDashboardScreen({ navigation }: { navigation: any }
         </TouchableOpacity>
       </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color={COLORS.textPrimary} style={{ flex: 1 }} />
-      ) : (
-        <FlatList
-          data={profiles}
-          renderItem={renderProfileItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
-          ListEmptyComponent={<Text style={styles.emptyText}>No users found.</Text>}
-          onRefresh={fetchProfiles}
-          refreshing={loading}
-        />
-      )}
+      <FlatList
+        data={profiles}
+        renderItem={renderProfileItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContainer}
+        ListEmptyComponent={<Text style={styles.emptyText}>No users found.</Text>}
+        onRefresh={fetchProfiles}
+        refreshing={loading}
+      />
     </SafeAreaView>
   );
 }

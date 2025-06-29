@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
-console.log("Award Admin Badge (v1.0) initializing.");
+console.log("Award Admin Badge (v1.2) initializing.");
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -37,6 +37,8 @@ Deno.serve(async (req) => {
       throw new Error('user_id and badge_id are required.');
     }
 
+    console.log(`Admin ${adminId} attempting to award badge ${badge_id} to user ${user_id}`);
+
     // Verify admin role
     const { data: adminProfile, error: profileError } = await adminClient
       .from('profiles')
@@ -48,21 +50,39 @@ Deno.serve(async (req) => {
       throw new Error('Only admins or super_admins can award badges.');
     }
 
+    // Check if badge exists
+    const { data: badgeData, error: badgeError } = await adminClient
+      .from('badges')
+      .select('id')
+      .eq('id', badge_id)
+      .single();
+    if (badgeError || !badgeData) throw new Error('Invalid badge_id.');
+
+    // Check if user exists
+    const { data: userData, error: userError } = await adminClient
+      .from('profiles')
+      .select('id')
+      .eq('id', user_id)
+      .single();
+    if (userError || !userData) throw new Error('Invalid user_id.');
+
     // Award the badge
-    const { error: insertError } = await adminClient
+    const { error: insertError, data: insertData } = await adminClient
       .from('user_badges')
       .insert({
         user_id,
         badge_id,
         earned_at: new Date().toISOString(),
         awarded_by: adminId,
-      })
-      .onConflict(['user_id', 'badge_id'])
-      .doNothing();
-    if (insertError) throw insertError;
+      });
+    if (insertError) {
+      console.error('Insert error:', insertError.message, insertError.details);
+      throw new Error(`Failed to insert badge: ${insertError.message}`);
+    }
+    console.log('Insert result:', insertData);
 
     return new Response(
-      JSON.stringify({ success: true, message: `Badge ${badge_id} awarded to user ${user_id} by ${adminId}.` }),
+      JSON.stringify({ success: true, message: `Badge ${badge_id} awarded to user ${user_id} by ${adminId}.`, data: insertData }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
@@ -71,7 +91,7 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error("Error in award-admin-badge function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message, details: error.details }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,

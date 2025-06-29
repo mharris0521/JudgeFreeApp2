@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
 import { useStore, Profile } from '../lib/store';
 import ProfileForm from '../components/ProfileForm';
-import { BadgeDisplay } from '../components/BadgeComponents';
+import { VerificationBadgeDisplay, AwardBadgeDisplay } from '../components/BadgeComponents';
 import { COLORS } from '../lib/constants';
 import { useRoute, useNavigation } from '@react-navigation/native';
 
@@ -14,7 +14,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
   const loggedInProfile = useStore((state) => state.profile);
   const setLoggedInProfile = useStore((state) => state.setProfile);
   const [loading, setLoading] = useState(true);
-  const [awardedBadges, setAwardedBadges] = useState<any[]>([]);
+  const [awardedBadges, setAwardedBadges] = useState<{ id: number; name: string; icon_name: string }[]>([]);
   const { userId: viewUserId } = useRoute().params || {};
   const isOwnProfile = !viewUserId || viewUserId === loggedInProfile?.id;
   const [profileToDisplay, setProfileToDisplay] = useState<Profile | null>(null);
@@ -46,7 +46,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
 
       const { data: badgeData, error: badgeError } = await supabase
         .from('user_badges')
-        .select('badges ( id, name )')
+        .select('badges ( id, name, icon_name )')
         .eq('user_id', profileId);
       if (badgeError) throw badgeError;
       setAwardedBadges(badgeData?.map(item => item.badges).filter(Boolean) || []);
@@ -136,7 +136,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
   if (loading || !profileToDisplay) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color={COLORS.textPrimary} />
       </SafeAreaView>
     );
   }
@@ -147,16 +147,40 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          {isOwnProfile && isAdminOrModerator && (
+        {/* Left side icons */}
+        <View style={styles.headerLeftIcons}>
+          {isOwnProfile && isSuperAdmin && (
             <TouchableOpacity
               style={styles.headerButton}
+              onPress={() => navigation.navigate('AdminDashboard')}
+            >
+              <Ionicons name="settings-outline" size={24} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+          )}
+          {isOwnProfile && isAdminOrModerator && (
+            <TouchableOpacity
+              style={[styles.headerButton, styles.lowerHeaderButton]} // Added lowerHeaderButton style
               onPress={() => navigation.navigate('ReportsHub')}
             >
               <Ionicons name="flag-outline" size={24} color={COLORS.textPrimary} />
             </TouchableOpacity>
           )}
+          {isOwnProfile && loggedInProfile?.role === 'support' && (
+            <TouchableOpacity
+              style={[styles.headerButton, styles.lowerHeaderButton]} // Added lowerHeaderButton style
+              onPress={toggleAvailability}
+              disabled={loading}
+            >
+              <Ionicons
+                name={loggedInProfile.is_available_for_support ? "toggle-sharp" : "toggle-outline"}
+                size={24}
+                color={loggedInProfile.is_available_for_support ? COLORS.accentLight : COLORS.textSecondary}
+              />
+            </TouchableOpacity>
+          )}
         </View>
+
+        {/* Center content (Avatar, Username, Full Name) */}
         <View style={styles.headerCenter}>
           <Image
             source={{ uri: profileToDisplay.avatar_url || `${COLORS.DEFAULT_AVATAR_URL}${profileToDisplay.username?.charAt(0).toUpperCase() || 'U'}` }}
@@ -165,10 +189,20 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
           <Text style={styles.headerTitle}>@{profileToDisplay.username}</Text>
           <Text style={styles.subHeader}>{profileToDisplay.full_name || 'No Name Provided'}</Text>
         </View>
-        <View style={styles.headerRight}>
+
+        {/* Right side icons */}
+        <View style={styles.headerRightIcons}>
           {isOwnProfile && (
             <TouchableOpacity
               style={styles.headerButton}
+              onPress={() => navigation.navigate('EditProfile', { userId: isOwnProfile ? undefined : viewUserId })}
+            >
+              <Ionicons name="create-outline" size={24} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+          )}
+          {isOwnProfile && (
+            <TouchableOpacity
+              style={[styles.headerButton, styles.lowerHeaderButton]} // Added lowerHeaderButton style
               onPress={handleSignOut}
               disabled={loading}
             >
@@ -179,68 +213,19 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
-        <BadgeDisplay profile={profileToDisplay} awardedBadges={awardedBadges} />
+        <VerificationBadgeDisplay profile={profileToDisplay} />
+        <AwardBadgeDisplay awardedBadges={awardedBadges} />
 
         <ProfileForm
           initialData={profileToDisplay}
           onChange={() => {}}
-          isEditable={false}
+          isEditable={true}
           fieldsToShow={[
             'bio', 'age', 'city', 'state_region', 'profession',
             'mood_status', 'professional_type', 'military_branch',
             'professional_verified', 'military_verified'
           ]}
         />
-
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => navigation.navigate('EditProfile', { userId: isOwnProfile ? undefined : viewUserId })}
-          >
-            <Ionicons name="create-outline" size={20} color={COLORS.textPrimary} style={styles.buttonIcon} />
-            <Text style={styles.editButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
-
-          {loggedInProfile?.role === 'support' && (
-            <TouchableOpacity
-              style={[
-                styles.toggleSupportButton,
-                loggedInProfile.is_available_for_support ? styles.supportAvailable : styles.supportUnavailable
-              ]}
-              onPress={toggleAvailability}
-              disabled={loading}
-            >
-              <Ionicons
-                name={loggedInProfile.is_available_for_support ? "toggle-sharp" : "toggle-outline"}
-                size={24}
-                color={COLORS.textPrimary}
-              />
-              <Text style={styles.toggleSupportButtonText}>
-                Support: {loggedInProfile.is_available_for_support ? 'ON' : 'OFF'}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {isAdminOrModerator && (
-            <TouchableOpacity
-              style={styles.adminActionButton}
-              onPress={() => navigation.navigate('ReportsHub')}
-            >
-              <Ionicons name="flag-outline" size={20} color={COLORS.textPrimary} style={styles.buttonIcon} />
-              <Text style={styles.adminActionButtonText}>Reports Hub</Text>
-            </TouchableOpacity>
-          )}
-
-          {isSuperAdmin && (
-            <TouchableOpacity
-              style={styles.adminActionButton}
-              onPress={() => navigation.navigate('AdminDashboard')}
-            >
-              <Ionicons name="settings-outline" size={20} color={COLORS.textPrimary} style={styles.buttonIcon} />
-              <Text style={styles.adminActionButtonText}>Admin Dashboard</Text>
-            </TouchableOpacity>
-          )}
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -249,29 +234,44 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.secondaryBlue,
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    padding: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+    minHeight: 120, // Keep sufficient height for stacking
   },
-  headerLeft: {
+  headerLeftIcons: {
     flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    // paddingTop: 10, // Optional: add padding here if needed to push all left icons down
+  },
+  headerRightIcons: {
+    flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    // paddingTop: 10, // Optional: add padding here if needed to push all right icons down
   },
   headerCenter: {
     flex: 3,
     alignItems: 'center',
-  },
-  headerRight: {
-    flex: 1,
-    alignItems: 'flex-end',
+    // Adjust this marginTop if center content is too high/low relative to icons
+    marginTop: 0,
   },
   headerButton: {
-    padding: 10,
+    padding: 8,
+  },
+  // New style to push down lower buttons
+  lowerHeaderButton: {
+    marginTop: 10, // Adjust this value to control space between top and bottom icons
   },
   avatar: {
     width: 100,
@@ -279,8 +279,8 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     marginBottom: 15,
     borderWidth: 2,
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.tertiary,
+    borderColor: COLORS.accentLight,
+    backgroundColor: COLORS.primaryBlue,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -296,65 +296,6 @@ const styles = StyleSheet.create({
   },
   scrollViewContent: {
     paddingBottom: 40,
-  },
-  actionButtonsContainer: {
-    paddingHorizontal: 20,
-    marginTop: 20,
-  },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingVertical: 15,
-    borderRadius: 12,
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  editButtonText: {
-    color: COLORS.textPrimary,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 10,
-  },
-  buttonIcon: {
-    marginRight: 5,
-  },
-  toggleSupportButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderRadius: 12,
-    justifyContent: 'center',
-    marginBottom: 10,
-    borderWidth: 1,
-  },
-  supportAvailable: {
-    backgroundColor: COLORS.success,
-    borderColor: COLORS.success,
-  },
-  supportUnavailable: {
-    backgroundColor: COLORS.disabled,
-    borderColor: COLORS.disabled,
-  },
-  toggleSupportButtonText: {
-    color: COLORS.textPrimary,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 5,
-  },
-  adminActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.info,
-    paddingVertical: 15,
-    borderRadius: 12,
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  adminActionButtonText: {
-    color: COLORS.textPrimary,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 10,
+    paddingHorizontal: 15,
   },
 });
